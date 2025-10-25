@@ -1,0 +1,31 @@
+{
+  "traceId": "sample-trace-001",
+  "name": "lesson-generation",
+  "startTime": "2025-10-22T10:30:00Z",
+  "endTime": "2025-10-22T10:30:15Z",
+  "status": "SUCCESS",
+  "input": {
+    "outline": "A quiz on Florida"
+  },
+  "output": {
+    "lessonId": "a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8",
+    "content": "// Florida Quiz Lesson\n// This lesson demonstrates a simple quiz about Florida\n\nclass FloridaQuiz {\n  private questions: Array<{question: string, answer: string}> = [\n    { question: \"What is the capital of Florida?\", answer: \"Tallahassee\" },\n    { question: \"What is the largest city in Florida?\", answer: \"Jacksonville\" },\n    { question: \"What is the nickname of Florida?\", answer: \"The Sunshine State\" }\n  ];\n\n  // Run the quiz\n  public runQuiz(): void {\n    console.log(\"Welcome to the Florida Quiz!\");\n    \n    let score = 0;\n    \n    for (const [index, q] of this.questions.entries()) {\n      const userAnswer = prompt(`${index + 1}. ${q.question}`);\n      \n      if (userAnswer && userAnswer.toLowerCase() === q.answer.toLowerCase()) {\n        console.log(\"Correct!\");\n        score++;\n      } else {\n        console.log(`Wrong! The correct answer is: ${q.answer}`);\n      }\n    }\n    \n    console.log(`Quiz finished! Your score: ${score}/${this.questions.length}`);\n  }\n}\n\n// Example usage\nconst quiz = new FloridaQuiz();\n// quiz.runQuiz(); // Uncomment to run the quiz\n"
+  },
+  "observations": [
+    {
+      "id": "generation-001",
+      "type": "GENERATION",
+      "name": "openai-generation",
+      "startTime": "2025-10-22T10:30:01Z",
+      "endTime": "2025-10-22T10:30:10Z",
+      "model": "gpt-3.5-turbo",
+      "input": "A quiz on Florida",
+      "output": "// Florida Quiz Lesson\n// This lesson demonstrates a simple quiz about Florida\n\nclass FloridaQuiz {\n  private questions: Array<{question: string, answer: string}> = [\n    { question: \"What is the capital of Florida?\", answer: \"Tallahassee\" },\n    { question: \"What is the largest city in Florida?\", answer: \"Jacksonville\" },\n    { question: \"What is the nickname of Florida?\", answer: \"The Sunshine State\" }\n  ];\n\n  // Run the quiz\n  public runQuiz(): void {\n    console.log(\"Welcome to the Florida Quiz!\");\n    \n    let score = 0;\n    \n    for (const [index, q] of this.questions.entries()) {\n      const userAnswer = prompt(`${index + 1}. ${q.question}`);\n      \n      if (userAnswer && userAnswer.toLowerCase() === q.answer.toLowerCase()) {\n        console.log(\"Correct!\");\n        score++;\n      } else {\n        console.log(`Wrong! The correct answer is: ${q.answer}`);\n      }\n    }\n    \n    console.log(`Quiz finished! Your score: ${score}/${this.questions.length}`);\n  }\n}\n\n// Example usage\nconst quiz = new FloridaQuiz();\n// quiz.runQuiz(); // Uncomment to run the quiz\n",
+      "usage": {
+        "promptTokens": 85,
+        "completionTokens": 245,
+        "totalTokens": 330
+      }
+    }
+  ]
+}
