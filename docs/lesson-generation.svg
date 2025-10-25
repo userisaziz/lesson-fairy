@@ -1,0 +1,105 @@
+<svg width="900" height="700" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .node { fill: #f0f0f0; stroke: #333; stroke-width: 1px; }
+    .node-text { font-family: Arial, sans-serif; font-size: 12px; text-anchor: middle; dominant-baseline: middle; }
+    .arrow { stroke: #333; stroke-width: 2px; marker-end: url(#arrowhead); }
+    .title { font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; text-anchor: middle; }
+    .process { fill: #bbf; }
+    .data { fill: #bfb; }
+    .service { fill: #fbb; }
+    .ai { fill: #ffb; }
+    .database { fill: #bff; }
+  </style>
+  
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+    </marker>
+  </defs>
+  
+  <!-- Title -->
+  <text x="450" y="30" class="title">Lesson Generation Process</text>
+  
+  <!-- Nodes -->
+  <!-- Step 1 -->
+  <rect x="400" y="60" width="100" height="40" rx="5" class="node process"/>
+  <text x="450" y="80" class="node-text">User Request</text>
+  
+  <!-- Step 2 -->
+  <rect x="400" y="130" width="100" height="40" rx="5" class="node service"/>
+  <text x="450" y="150" class="node-text">API Endpoint</text>
+  
+  <!-- Step 3 -->
+  <rect x="400" y="200" width="100" height="40" rx="5" class="node database"/>
+  <text x="450" y="220" class="node-text">Create DB Record</text>
+  
+  <!-- Step 4 -->
+  <rect x="400" y="270" width="100" height="40" rx="5" class="node service"/>
+  <text x="450" y="290" class="node-text">Async Generation</text>
+  
+  <!-- Step 5 -->
+  <rect x="400" y="340" width="100" height="40" rx="5" class="node service"/>
+  <text x="450" y="360" class="node-text">Build AI Prompt</text>
+  
+  <!-- Step 6 -->
+  <rect x="400" y="410" width="100" height="40" rx="5" class="node ai"/>
+  <text x="450" y="430" class="node-text">AI Content Generation</text>
+  
+  <!-- Step 7 -->
+  <rect x="400" y="480" width="100" height="40" rx="5" class="node service"/>
+  <text x="450" y="500" class="node-text">Content Validation</text>
+  
+  <!-- Step 8 -->
+  <rect x="400" y="550" width="100" height="40" rx="5" class="node service"/>
+  <text x="450" y="570" class="node-text">Visual Enhancement</text>
+  
+  <!-- Step 9 -->
+  <rect x="400" y="620" width="100" height="40" rx="5" class="node database"/>
+  <text x="450" y="640" class="node-text">Update DB Record</text>
+  
+  <!-- Real-time Notification -->
+  <rect x="600" y="620" width="150" height="40" rx="5" class="node service"/>
+  <text x="675" y="640" class="node-text">Real-time Notification</text>
+  
+  <!-- User Interface Feedback -->
+  <rect x="200" y="620" width="150" height="40" rx="5" class="node process"/>
+  <text x="275" y="640" class="node-text">UI Update</text>
+  
+  <!-- Arrows -->
+  <line x1="450" y1="100" x2="450" y2="130" class="arrow"/>
+  <line x1="450" y1="170" x2="450" y2="200" class="arrow"/>
+  <line x1="450" y1="240" x2="450" y2="270" class="arrow"/>
+  <line x1="450" y1="310" x2="450" y2="340" class="arrow"/>
+  <line x1="450" y1="380" x2="450" y2="410" class="arrow"/>
+  <line x1="450" y1="450" x2="450" y2="480" class="arrow"/>
+  <line x1="450" y1="520" x2="450" y2="550" class="arrow"/>
+  <line x1="450" y1="590" x2="450" y2="620" class="arrow"/>
+  <line x1="450" y1="660" x2="600" y2="640" class="arrow"/>
+  <line x1="450" y1="660" x2="350" y2="640" class="arrow"/>
+  
+  <!-- AI Providers -->
+  <rect x="200" y="410" width="100" height="40" rx="5" class="node ai"/>
+  <text x="250" y="430" class="node-text">Google Gemini</text>
+  
+  <rect x="600" y="410" width="100" height="40" rx="5" class="node ai"/>
+  <text x="650" y="430" class="node-text">Hugging Face</text>
+  
+  <line x1="400" y1="430" x2="300" y2="430" class="arrow"/>
+  <line x1="500" y1="430" x2="600" y2="430" class="arrow"/>
+  
+  <!-- Legend -->
+  <rect x="50" y="550" width="15" height="15" class="process"/>
+  <text x="70" y="562" class="node-text" text-anchor="start">Process</text>
+  
+  <rect x="150" y="550" width="15" height="15" class="service"/>
+  <text x="170" y="562" class="node-text" text-anchor="start">Service</text>
+  
+  <rect x="250" y="550" width="15" height="15" class="data"/>
+  <text x="270" y="562" class="node-text" text-anchor="start">Data</text>
+  
+  <rect x="350" y="550" width="15" height="15" class="ai"/>
+  <text x="370" y="562" class="node-text" text-anchor="start">AI Provider</text>
+  
+  <rect x="450" y="550" width="15" height="15" class="database"/>
+  <text x="470" y="562" class="node-text" text-anchor="start">Database</text>
+</svg>

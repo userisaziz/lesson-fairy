@@ -1,0 +1,90 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .node { fill: #f0f0f0; stroke: #333; stroke-width: 1px; }
+    .node-text { font-family: Arial, sans-serif; font-size: 12px; text-anchor: middle; dominant-baseline: middle; }
+    .arrow { stroke: #333; stroke-width: 2px; marker-end: url(#arrowhead); }
+    .title { font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; text-anchor: middle; }
+  </style>
+  
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+    </marker>
+  </defs>
+  
+  <!-- Title -->
+  <text x="400" y="30" class="title">Feyra-AI Application Architecture</text>
+  
+  <!-- Nodes -->
+  <!-- Layer 1 -->
+  <rect x="350" y="60" width="100" height="40" rx="5" class="node" fill="#f9f"/>
+  <text x="400" y="80" class="node-text">User Interface</text>
+  
+  <!-- Layer 2 -->
+  <rect x="350" y="130" width="100" height="40" rx="5" class="node" fill="#bbf"/>
+  <text x="400" y="150" class="node-text">Next.js Frontend</text>
+  
+  <!-- Layer 3 -->
+  <rect x="200" y="200" width="100" height="40" rx="5" class="node" fill="#bfb"/>
+  <text x="250" y="220" class="node-text">API Routes</text>
+  
+  <rect x="450" y="200" width="100" height="40" rx="5" class="node" fill="#fbb"/>
+  <text x="500" y="220" class="node-text">Real-time Updates</text>
+  
+  <!-- Layer 4 -->
+  <rect x="200" y="270" width="100" height="40" rx="5" class="node" fill="#fbb"/>
+  <text x="250" y="290" class="node-text">Service Layer</text>
+  
+  <rect x="450" y="270" width="100" height="40" rx="5" class="node" fill="#bff"/>
+  <text x="500" y="290" class="node-text">Supabase PostgreSQL</text>
+  
+  <!-- Layer 5 -->
+  <rect x="100" y="340" width="100" height="40" rx="5" class="node" fill="#ffb"/>
+  <text x="150" y="360" class="node-text">AI Providers</text>
+  
+  <rect x="300" y="340" width="100" height="40" rx="5" class="node" fill="#bff"/>
+  <text x="350" y="360" class="node-text">Database</text>
+  
+  <!-- Layer 6 -->
+  <rect x="50" y="410" width="100" height="40" rx="5" class="node" fill="#bfb"/>
+  <text x="100" y="430" class="node-text">Google Gemini</text>
+  
+  <rect x="175" y="410" width="100" height="40" rx="5" class="node" fill="#bfb"/>
+  <text x="225" y="430" class="node-text">Hugging Face</text>
+  
+  <!-- External Services -->
+  <rect x="450" y="410" width="150" height="40" rx="5" class="node" fill="#ffb"/>
+  <text x="525" y="430" class="node-text">External Services</text>
+  
+  <!-- Arrows -->
+  <line x1="400" y1="100" x2="400" y2="130" class="arrow"/>
+  <line x1="400" y1="170" x2="250" y2="200" class="arrow"/>
+  <line x1="400" y1="170" x2="500" y2="200" class="arrow"/>
+  <line x1="250" y1="240" x2="250" y2="270" class="arrow"/>
+  <line x1="500" y1="240" x2="500" y2="270" class="arrow"/>
+  <line x1="250" y1="310" x2="150" y2="340" class="arrow"/>
+  <line x1="250" y1="310" x2="350" y2="340" class="arrow"/>
+  <line x1="500" y1="310" x2="500" y2="340" class="arrow"/>
+  <line x1="150" y1="380" x2="100" y2="410" class="arrow"/>
+  <line x1="150" y1="380" x2="225" y2="410" class="arrow"/>
+  <line x1="500" y1="310" x2="525" y2="410" class="arrow"/>
+  
+  <!-- Legend -->
+  <rect x="50" y="500" width="15" height="15" fill="#f9f" stroke="#333"/>
+  <text x="70" y="512" class="node-text" text-anchor="start">UI Layer</text>
+  
+  <rect x="150" y="500" width="15" height="15" fill="#bbf" stroke="#333"/>
+  <text x="170" y="512" class="node-text" text-anchor="start">Frontend Layer</text>
+  
+  <rect x="270" y="500" width="15" height="15" fill="#bfb" stroke="#333"/>
+  <text x="290" y="512" class="node-text" text-anchor="start">API Layer</text>
+  
+  <rect x="370" y="500" width="15" height="15" fill="#fbb" stroke="#333"/>
+  <text x="390" y="512" class="node-text" text-anchor="start">Service Layer</text>
+  
+  <rect x="470" y="500" width="15" height="15" fill="#bff" stroke="#333"/>
+  <text x="490" y="512" class="node-text" text-anchor="start">Data Layer</text>
+  
+  <rect x="570" y="500" width="15" height="15" fill="#ffb" stroke="#333"/>
+  <text x="590" y="512" class="node-text" text-anchor="start">AI Layer</text>
+</svg>
