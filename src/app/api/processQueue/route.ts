@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { VercelLessonQueue } from '@/app/services/vercelQueue.service';
 import { supabase } from '@/lib/supabaseClient';

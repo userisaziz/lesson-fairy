@@ -1,62 +1,43 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
-// Add retry configuration
-const MAX_RETRIES = 1;
-const RETRY_DELAY = 3000; // 3 seconds
+const MAX_RETRIES = 2;
+const RETRY_DELAY = 2000; // 2 seconds
 
-// Add timeout configuration
-const API_TIMEOUT = 30000; // 30 seconds
-
-// Google Gemini integration 
-export const generateWithGemini = async (prompt: string) => {
-  console.log('Using Gemini API key:', process.env.GEMINI_API_KEY);
+export const generateWithGemini = async (prompt: string): Promise<string> => {
   if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not set');
+    throw new Error("GEMINI_API_KEY is not set");
   }
 
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   let attempts = 0;
+
   while (attempts < MAX_RETRIES) {
-    console.log(`Attempt ${attempts + 1}`);
+    attempts++;
     try {
-      const responsePromise = fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": process.env.GEMINI_API_KEY!,
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-          }),
-        }
-      ).then(async res => {
-        if (!res.ok) throw new Error(`Gemini API error: ${res.status}`);
-        const data = await res.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      console.log(`[Gemini] Attempt ${attempts} generating content...`);
+
+      const result = await ai.models.generateContent({
+        model: "gemini-2.5-flash",   // official model from Google docs
+        contents: [{ text: prompt }],
       });
 
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Gemini API request timed out')), API_TIMEOUT)
-      );
+      const text = result.output_text || result.text || "";
+      if (!text.trim()) throw new Error("Gemini returned empty response");
 
-      console.log('Before Promise.race');
-      const content = await Promise.race([responsePromise, timeoutPromise]);
-      console.log('After Promise.race');
-
-      if (!content.trim()) throw new Error('Gemini returned empty response');
-      return content;
+      console.log(`[Gemini] Successfully generated content`);
+      return text;
     } catch (error: any) {
-      attempts++;
-      console.error(`Error generating with Gemini (attempt ${attempts}):`, error);
+      console.error(`[Gemini] Error on attempt ${attempts}:`, error.message);
 
-      if (attempts >= MAX_RETRIES)
+      if (attempts >= MAX_RETRIES) {
         throw new Error(`Gemini API error after ${MAX_RETRIES} attempts: ${error.message}`);
+      }
 
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempts));
+      await new Promise(res => setTimeout(res, RETRY_DELAY * attempts));
     }
   }
-  return '';
+
+  return "";
 };
 
 
