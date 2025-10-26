@@ -7,7 +7,7 @@ import { LessonContent } from "@/types/lesson";
 // Add retry configuration
 const MAX_RETRIES = 2; // Reduced retries to avoid timeouts
 const RETRY_DELAY = 1000; // Reduced delay
-const REQUEST_TIMEOUT = 25000; // 25 seconds timeout for requests
+const REQUEST_TIMEOUT = 45000; // 45 seconds timeout for requests
 
 export async function generateLessonContentAsync(lessonId: string, outline: string) {
   try {

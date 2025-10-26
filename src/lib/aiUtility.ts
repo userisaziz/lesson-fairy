@@ -1,296 +1,389 @@
 import { GoogleGenAI, ApiError } from "@google/genai";
 
-const MAX_RETRIES = 2;
-const RETRY_DELAY = 2000; // 2 seconds
-const REQUEST_TIMEOUT = 30000; // 30 seconds timeout
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
+const REQUEST_TIMEOUT = 45000; // 45 seconds to work with Vercel's 60s limit
 
+/**
+ * Production-ready Gemini content generation with proper error handling
+ */
 export const generateWithGemini = async (prompt: string): Promise<string> => {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not set");
   }
 
-  // Log the prompt length for debugging (but not the actual prompt for privacy)
-  console.log(
-    `[Gemini] Generating content with prompt length: ${prompt.length} characters`
-  );
+  console.log(`[Gemini] Starting generation (prompt: ${prompt.length} chars)`);
 
-  // Initialize with the new SDK syntax
   const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
   });
 
-  let attempts = 0;
-
-  while (attempts < MAX_RETRIES) {
-    attempts++;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      console.log(`[Gemini] Attempt ${attempts} generating content...`);
+      console.log(`[Gemini] Attempt ${attempt}/${MAX_RETRIES}`);
 
-      // Create a promise that wraps the SDK call with proper async/await
-      const generateContentPromise = async () => {
-        console.log(
-          `[Gemini] Calling generateContent with model: gemini-2.0-flash-001`
-        );
-        const response = await ai.models
-          .generateContent({
-            model: "gemini-2.0-flash-001", // Updated to a known model
+      const result = await executeWithTimeout(
+        async () => {
+          console.log(`[Gemini] Calling API...`);
+          const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash", // Using stable model
             contents: prompt,
-          })
-          .catch((e) => {
-            console.error("error name: ", e.name);
-            console.error("error message: ", e.message);
-            console.error("error status: ", e.status);
           });
-        return response;
-      };
-
-      // Create timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        console.log(`[Gemini] Setting timeout of ${REQUEST_TIMEOUT}ms`);
-        setTimeout(() => {
-          console.log(`[Gemini] Timeout triggered after ${REQUEST_TIMEOUT}ms`);
-          reject(new Error("Request timeout after 30 seconds"));
-        }, REQUEST_TIMEOUT);
-      });
-
-      console.log(`[Gemini] Starting Promise.race...`);
-      // Race the promises
-      const response: any = await Promise.race([
-        generateContentPromise(),
-        timeoutPromise,
-      ]);
-      console.log(`[Gemini] Promise.race completed`);
-
-      // Check if we have a valid response
-      if (!response || typeof response !== "object") {
-        throw new Error("Invalid response from Gemini API");
-      }
-
-      console.log(`[Gemini] Response received, extracting text...`);
-      // Extract text from response
-      let text = "";
-      if (typeof response.text === "string") {
-        text = response.text;
-      } else if (typeof response.text === "function") {
-        text = response.text();
-      } else {
-        text = JSON.stringify(response.text);
-      }
-
-      if (!text) throw new Error("Gemini returned empty response");
-
-      console.log(
-        `[Gemini] Successfully generated content with ${text.length} characters`
+          console.log(`[Gemini] API responded`);
+          return response;
+        },
+        REQUEST_TIMEOUT,
+        `Gemini API timeout (${REQUEST_TIMEOUT}ms)`
       );
+
+      // Extract text from response
+      const text = extractTextFromResponse(result);
+      
+      if (!text || text.trim().length === 0) {
+        throw new Error("Empty response from Gemini");
+      }
+
+      console.log(`[Gemini] ✅ Success (${text.length} chars)`);
       return text;
+
     } catch (error: any) {
-      console.error(`[Gemini] Error on attempt ${attempts}:`, error.message);
-      if (error.stack) {
-        console.error(`[Gemini] Error stack:`, error.stack);
+      console.error(`[Gemini] ❌ Attempt ${attempt} failed:`, error.message);
+
+      // Don't retry on auth/permission errors
+      if (isNonRetryableError(error)) {
+        console.error(`[Gemini] Non-retryable error, failing immediately`);
+        throw new Error(`Gemini API error: ${error.message}`);
       }
 
-      // Handle specific API errors
-      if (error instanceof ApiError) {
-        console.error(`[Gemini] API Error - Status: ${error.status}`);
-      }
-
-      // If it's a timeout error, don't retry
-      if (error.message && error.message.includes("timeout")) {
-        throw new Error(`Gemini API timeout: ${error.message}`);
-      }
-
-      if (attempts >= MAX_RETRIES) {
+      // If this was the last attempt, throw
+      if (attempt === MAX_RETRIES) {
         throw new Error(
-          `Gemini API error after ${MAX_RETRIES} attempts: ${
-            error.message || "Unknown error"
-          }`
+          `Gemini failed after ${MAX_RETRIES} attempts: ${error.message}`
         );
       }
 
-      console.log(
-        `[Gemini] Waiting ${RETRY_DELAY * attempts}ms before retry...`
-      );
-      await new Promise((res) => setTimeout(res, RETRY_DELAY * attempts));
+      // Wait before retry with exponential backoff
+      const waitTime = RETRY_DELAY * attempt;
+      console.log(`[Gemini] Retrying in ${waitTime}ms...`);
+      await sleep(waitTime);
     }
   }
 
-  return "";
+  throw new Error("Gemini generation failed");
 };
 
-// Function to generate diagrams using Hugging Face
+/**
+ * Execute a promise with a timeout
+ */
+async function executeWithTimeout<T>(
+  fn: () => Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string
+): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      console.log(`[Timeout] Triggered after ${timeoutMs}ms`);
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([fn(), timeoutPromise]);
+    clearTimeout(timeoutHandle!);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutHandle!);
+    throw error;
+  }
+}
+
+/**
+ * Extract text from various Gemini response formats
+ */
+function extractTextFromResponse(response: any): string {
+  try {
+    // Method 1: Direct text property
+    if (response.text) {
+      return typeof response.text === "function" ? response.text() : response.text;
+    }
+
+    // Method 2: Candidates structure
+    if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
+      return response.candidates[0].content.parts[0].text;
+    }
+
+    // Method 3: Response structure
+    if (response.response?.text) {
+      return typeof response.response.text === "function" 
+        ? response.response.text() 
+        : response.response.text;
+    }
+
+    console.error("[Gemini] Unexpected response structure:", 
+      JSON.stringify(response).substring(0, 500));
+    throw new Error("Could not extract text from response");
+  } catch (error: any) {
+    console.error("[Gemini] Text extraction failed:", error.message);
+    throw new Error(`Failed to parse response: ${error.message}`);
+  }
+}
+
+/**
+ * Check if error should not be retried
+ */
+function isNonRetryableError(error: any): boolean {
+  // API errors with specific status codes
+  if (error instanceof ApiError) {
+    const nonRetryableStatuses = [400, 401, 403, 404];
+    if (nonRetryableStatuses.includes(error.status)) {
+      return true;
+    }
+  }
+
+  // Check error message for non-retryable patterns
+  const message = error.message?.toLowerCase() || "";
+  const nonRetryablePatterns = [
+    "api key",
+    "authentication",
+    "permission",
+    "invalid",
+    "not found",
+  ];
+
+  return nonRetryablePatterns.some(pattern => message.includes(pattern));
+}
+
+/**
+ * Sleep utility
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Fallback: Direct REST API call (if SDK fails)
+ */
+export const generateWithGeminiREST = async (prompt: string): Promise<string> => {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not set");
+  }
+
+  console.log(`[Gemini REST] Starting generation`);
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-0827:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }],
+          },
+        ],
+      }),
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      throw new Error("No text in response");
+    }
+
+    console.log(`[Gemini REST] ✅ Success`);
+    return text;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    
+    if (error.name === "AbortError") {
+      throw new Error("Request timeout");
+    }
+    
+    throw error;
+  }
+};
+
+// ============================================================================
+// HUGGING FACE FUNCTIONS (Optimized for Production)
+// ============================================================================
+
+const HF_TIMEOUT = 30000;
+const HF_MAX_RETRIES = 2;
+
+/**
+ * Generate diagram with Hugging Face (production-ready)
+ */
 export const generateDiagramWithHuggingFace = async (
   description: string
 ): Promise<string> => {
-  try {
-    console.log("Attempting Hugging Face diagram generation...");
-    console.log("HUGGING_FACE_TOKEN set:", !!process.env.HUGGING_FACE_TOKEN);
-
-    if (!process.env.HUGGING_FACE_TOKEN) {
-      console.log("HUGGING_FACE_TOKEN is not set");
-      throw new Error("HUGGING_FACE_TOKEN is not set");
-    }
-
-    // For diagrams, we'll generate an image and return it as a data URL
-    // since Hugging Face doesn't directly generate SVG
-    const imagePrompt = `Create an educational diagram for children about: "${description}".
-    Requirements:
-    1. Clear, simple educational diagram
-    2. Bright, child-friendly colors
-    3. Cartoon-style illustrations
-    4. Simple labels and educational content
-    5. Visually appealing and fun for kids
-    6. Focus on the educational content`;
-
-    console.log("Using prompt:", imagePrompt);
-
-    // Use the new Inference Providers API endpoint with a text-to-image model
-    const response = await fetch(
-      "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0",
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.HUGGING_FACE_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-        body: JSON.stringify({
-          inputs: imagePrompt,
-          options: {
-            wait_for_model: true,
-          },
-        }),
-      }
-    );
-
-    console.log("Hugging Face API response status:", response.status);
-
-    // If we can't generate an image, return empty string
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(
-        `Hugging Face API error: ${response.status} ${response.statusText} - ${errorText}`
-      );
-
-      // If it's a 429 (rate limit), we might want to retry
-      if (response.status === 429) {
-        throw new Error("Rate limit exceeded on Hugging Face API");
-      }
-
-      return "";
-    }
-
-    // Convert the response to a data URL
-    const blob = await response.blob();
-    const arrayBuffer = await blob.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
-    console.log("✅ Successfully generated diagram image with Hugging Face");
-    return `data:image/jpeg;base64,${base64}`;
-  } catch (error: any) {
-    console.error("Error generating diagram with Hugging Face:", error);
-    // Return empty string
-    throw new Error(`Failed to generate diagram: ${error.message}`);
+  if (!process.env.HUGGING_FACE_TOKEN) {
+    throw new Error("HUGGING_FACE_TOKEN is not set");
   }
+
+  console.log(`[HF Diagram] Starting generation`);
+
+  const prompt = `Educational diagram for children: ${description}. 
+Clear, simple, bright colors, cartoon style, labeled, fun, educational.`;
+
+  return await generateHFImage(prompt, "diagram");
 };
 
-// Function to generate images using Hugging Face
+/**
+ * Generate image with Hugging Face (production-ready)
+ */
 export const generateImageWithHuggingFace = async (
   description: string
 ): Promise<string> => {
-  try {
-    console.log("Attempting Hugging Face image generation...");
-    console.log("HUGGING_FACE_TOKEN set:", !!process.env.HUGGING_FACE_TOKEN);
+  if (!process.env.HUGGING_FACE_TOKEN) {
+    throw new Error("HUGGING_FACE_TOKEN is not set");
+  }
 
-    if (!process.env.HUGGING_FACE_TOKEN) {
-      console.log("HUGGING_FACE_TOKEN is not set");
-      throw new Error("HUGGING_FACE_TOKEN is not set");
-    }
+  console.log(`[HF Image] Starting generation`);
 
-    // Models to try in order of preference
-    const models = [
-      {
-        name: "Stable Diffusion XL",
-        id: "stabilityai/stable-diffusion-xl-base-1.0",
-        prompt: `A child-friendly educational illustration showing ${description}, colorful, cartoon style, suitable for kids learning`,
-      },
-      {
-        name: "Stable Diffusion v1.5",
-        id: "runwayml/stable-diffusion-v1-5",
-        prompt: `A child-friendly educational illustration showing ${description}, colorful, cartoon style, suitable for kids learning`,
-      },
-    ];
+  const prompt = `Child-friendly educational illustration: ${description}. 
+Colorful, cartoon style, suitable for kids learning.`;
 
-    // Try each model in sequence
+  return await generateHFImage(prompt, "image");
+};
+
+/**
+ * Core Hugging Face image generation with retry logic
+ */
+async function generateHFImage(
+  prompt: string,
+  type: "diagram" | "image"
+): Promise<string> {
+  const models = [
+    "stabilityai/stable-diffusion-xl-base-1.0",
+    "runwayml/stable-diffusion-v1-5",
+  ];
+
+  for (let attempt = 1; attempt <= HF_MAX_RETRIES; attempt++) {
     for (const model of models) {
-      console.log(`Trying Hugging Face model: ${model.name}`);
-      console.log("Using prompt:", model.prompt);
-
       try {
-        // Use the new Inference Providers API endpoint
+        console.log(`[HF ${type}] Attempt ${attempt}, Model: ${model}`);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), HF_TIMEOUT);
+
         const response = await fetch(
-          `https://router.huggingface.co/hf-inference/models/${model.id}`,
+          `https://api-inference.huggingface.co/models/${model}`,
           {
+            method: "POST",
             headers: {
               Authorization: `Bearer ${process.env.HUGGING_FACE_TOKEN}`,
               "Content-Type": "application/json",
             },
-            method: "POST",
+            signal: controller.signal,
             body: JSON.stringify({
-              inputs: model.prompt,
-              options: {
-                wait_for_model: true,
-              },
+              inputs: prompt,
+              options: { wait_for_model: true },
             }),
           }
         );
 
-        console.log(
-          `Hugging Face API response status for ${model.name}:`,
-          response.status
-        );
+        clearTimeout(timeoutId);
 
-        if (response.status === 404) {
-          console.log(`Model ${model.name} not found, trying next model...`);
-          continue;
-        }
-
-        if (response.status === 403) {
-          console.log(
-            `Access forbidden for ${model.name}, trying next model...`
-          );
+        // Skip to next model on certain errors
+        if (response.status === 404 || response.status === 403) {
+          console.log(`[HF ${type}] Model ${model} not accessible, trying next`);
           continue;
         }
 
         if (response.status === 429) {
-          console.log(
-            `Rate limit exceeded for ${model.name}, trying next model...`
-          );
-          continue;
+          console.log(`[HF ${type}] Rate limited on ${model}`);
+          if (attempt < HF_MAX_RETRIES) {
+            await sleep(2000 * attempt);
+            continue;
+          }
+          throw new Error("Rate limit exceeded");
         }
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(
-            `Error with ${model.name}: ${response.status} ${response.statusText} - ${errorText}`
-          );
+          console.error(`[HF ${type}] Error: ${response.status} - ${errorText}`);
           continue;
         }
 
-        // Convert the response to a data URL
-        const blob = await response.blob();
-        const arrayBuffer = await blob.arrayBuffer();
+        // Convert to base64
+        const arrayBuffer = await response.arrayBuffer();
         const base64 = Buffer.from(arrayBuffer).toString("base64");
-        console.log(`✅ Successfully generated image with ${model.name}`);
+        
+        console.log(`[HF ${type}] ✅ Success with ${model}`);
         return `data:image/jpeg;base64,${base64}`;
-      } catch (modelError) {
-        console.error(`Error with ${model.name}:`, modelError);
+
+      } catch (error: any) {
+        console.error(`[HF ${type}] Error with ${model}:`, error.message);
+        
+        if (error.name === "AbortError") {
+          console.log(`[HF ${type}] Timeout on ${model}`);
+        }
+        
+        // Try next model
         continue;
       }
     }
 
-    // If we get here, all models failed
-    console.log("All Hugging Face models failed to generate an image");
-    return "";
-  } catch (error: any) {
-    console.error("Error generating image with Hugging Face:", error);
-    throw new Error(`Failed to generate image: ${error.message}`);
+    // Wait before full retry
+    if (attempt < HF_MAX_RETRIES) {
+      await sleep(2000 * attempt);
+    }
   }
-};
+
+  throw new Error(`Failed to generate ${type} after ${HF_MAX_RETRIES} attempts`);
+}
+
+/**
+ * Health check for APIs
+ */
+export async function checkAPIHealth(): Promise<{
+  gemini: boolean;
+  huggingFace: boolean;
+}> {
+  const results = {
+    gemini: false,
+    huggingFace: false,
+  };
+
+  // Check Gemini
+  try {
+    await generateWithGemini("Say 'OK'");
+    results.gemini = true;
+  } catch (error) {
+    console.error("[Health] Gemini check failed");
+  }
+
+  // Check Hugging Face
+  try {
+    if (process.env.HUGGING_FACE_TOKEN) {
+      const response = await fetch(
+        "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.HUGGING_FACE_TOKEN}`,
+          },
+        }
+      );
+      results.huggingFace = response.status !== 403;
+    }
+  } catch (error) {
+    console.error("[Health] HuggingFace check failed");
+  }
+
+  return results;
+}
