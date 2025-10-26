@@ -10,7 +10,9 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
   }
 
   // Log the prompt length for debugging (but not the actual prompt for privacy)
-  console.log(`[Gemini] Generating content with prompt length: ${prompt.length} characters`);
+  console.log(
+    `[Gemini] Generating content with prompt length: ${prompt.length} characters`
+  );
 
   // Initialize with the new SDK syntax
   const ai = new GoogleGenAI({
@@ -24,35 +26,68 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
     try {
       console.log(`[Gemini] Attempt ${attempts} generating content...`);
 
-      // Use a more reliable model name and add timeout configuration
-      const responsePromise = ai.models.generateContent({
-        model: "gemini-2.0-flash-001", // Updated to a known model
-        contents: prompt,
-      });
-      
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout after 30 seconds')), REQUEST_TIMEOUT)
-      );
+      // Create a promise that wraps the SDK call with proper async/await
+      const generateContentPromise = async () => {
+        console.log(
+          `[Gemini] Calling generateContent with model: gemini-2.0-flash-001`
+        );
+        const response = await ai.models
+          .generateContent({
+            model: "gemini-2.0-flash-001", // Updated to a known model
+            contents: prompt,
+          })
+          .catch((e) => {
+            console.error("error name: ", e.name);
+            console.error("error message: ", e.message);
+            console.error("error status: ", e.status);
+          });
+        return response;
+      };
 
-      const response: any = await Promise.race([responsePromise, timeoutPromise]);
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        console.log(`[Gemini] Setting timeout of ${REQUEST_TIMEOUT}ms`);
+        setTimeout(() => {
+          console.log(`[Gemini] Timeout triggered after ${REQUEST_TIMEOUT}ms`);
+          reject(new Error("Request timeout after 30 seconds"));
+        }, REQUEST_TIMEOUT);
+      });
+
+      console.log(`[Gemini] Starting Promise.race...`);
+      // Race the promises
+      const response: any = await Promise.race([
+        generateContentPromise(),
+        timeoutPromise,
+      ]);
+      console.log(`[Gemini] Promise.race completed`);
 
       // Check if we have a valid response
-      if (!response || typeof response !== 'object') {
+      if (!response || typeof response !== "object") {
         throw new Error("Invalid response from Gemini API");
       }
 
+      console.log(`[Gemini] Response received, extracting text...`);
       // Extract text from response
-      const text = typeof response.text === 'string' ? response.text : 
-                   typeof response.text === 'function' ? response.text() : 
-                   JSON.stringify(response.text);
+      let text = "";
+      if (typeof response.text === "string") {
+        text = response.text;
+      } else if (typeof response.text === "function") {
+        text = response.text();
+      } else {
+        text = JSON.stringify(response.text);
+      }
 
       if (!text) throw new Error("Gemini returned empty response");
 
-      console.log(`[Gemini] Successfully generated content with ${text.length} characters`);
+      console.log(
+        `[Gemini] Successfully generated content with ${text.length} characters`
+      );
       return text;
     } catch (error: any) {
       console.error(`[Gemini] Error on attempt ${attempts}:`, error.message);
-      console.error(`[Gemini] Error stack:`, error.stack);
+      if (error.stack) {
+        console.error(`[Gemini] Error stack:`, error.stack);
+      }
 
       // Handle specific API errors
       if (error instanceof ApiError) {
@@ -60,17 +95,21 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
       }
 
       // If it's a timeout error, don't retry
-      if (error.message.includes('timeout')) {
+      if (error.message && error.message.includes("timeout")) {
         throw new Error(`Gemini API timeout: ${error.message}`);
       }
 
       if (attempts >= MAX_RETRIES) {
         throw new Error(
-          `Gemini API error after ${MAX_RETRIES} attempts: ${error.message}`
+          `Gemini API error after ${MAX_RETRIES} attempts: ${
+            error.message || "Unknown error"
+          }`
         );
       }
 
-      console.log(`[Gemini] Waiting ${RETRY_DELAY * attempts}ms before retry...`);
+      console.log(
+        `[Gemini] Waiting ${RETRY_DELAY * attempts}ms before retry...`
+      );
       await new Promise((res) => setTimeout(res, RETRY_DELAY * attempts));
     }
   }
