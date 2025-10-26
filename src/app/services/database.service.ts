@@ -29,7 +29,7 @@ export async function updateLessonRecord(
   content: LessonContent, 
   status: string = 'generated'
 ) {
-  console.log('Updating lesson in database...');
+  console.log('Updating lesson in database...', { lessonId, status });
 
   // Validate content before saving
   if (!content || typeof content !== 'object') {

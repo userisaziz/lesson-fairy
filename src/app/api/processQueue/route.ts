@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { VercelLessonQueue } from '@/app/services/vercelQueue.service';
+import { supabase } from '@/lib/supabaseClient';
 
 export async function POST(request: Request) {
   try {
@@ -12,26 +13,29 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get the queue instance
-    const queue = VercelLessonQueue.getInstance();
-    
-    // Get lesson status
-    const status = queue.getLessonStatus(lessonId);
-    
-    if (!status) {
+    // Fetch the lesson from the database to get the outline
+    const { data: lesson, error } = await supabase
+      .from('lessons')
+      .select('outline')
+      .eq('id', lessonId)
+      .single();
+
+    if (error || !lesson) {
       return NextResponse.json(
-        { error: 'Lesson not found in queue' }, 
+        { error: 'Lesson not found in database' }, 
         { status: 404 }
       );
     }
 
+    // Get the queue instance
+    const queue = VercelLessonQueue.getInstance();
+    
     // Process the lesson (within Vercel timeout limits)
-    await queue.processLesson(lessonId);
+    await queue.processLesson(lessonId, lesson.outline);
 
     return NextResponse.json({ 
       message: 'Lesson processing completed',
-      lessonId,
-      status: queue.getLessonStatus(lessonId)
+      lessonId
     });
   } catch (error: any) {
     console.error('Error processing queue:', error);
@@ -54,20 +58,24 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get the queue instance
-    const queue = VercelLessonQueue.getInstance();
-    
-    // Get lesson status
-    const status = queue.getLessonStatus(lessonId);
-    
-    if (!status) {
+    // Fetch the lesson status from the database
+    const { data: lesson, error } = await supabase
+      .from('lessons')
+      .select('status')
+      .eq('id', lessonId)
+      .single();
+
+    if (error || !lesson) {
       return NextResponse.json(
-        { error: 'Lesson not found in queue' }, 
+        { error: 'Lesson not found in database' }, 
         { status: 404 }
       );
     }
 
-    return NextResponse.json(status);
+    return NextResponse.json({
+      id: lessonId,
+      status: lesson.status
+    });
   } catch (error: any) {
     console.error('Error fetching queue status:', error);
     return NextResponse.json(

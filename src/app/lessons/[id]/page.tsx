@@ -40,6 +40,7 @@ export default function LessonDetailPage() {
           return;
         }
 
+        console.log('Fetched lesson data:', data);
         setLesson(data as Lesson);
       } catch (error: any) {
         console.error('Error fetching lesson:', error);
@@ -72,6 +73,8 @@ export default function LessonDetailPage() {
           filter: `id=eq.${id}`,
         },
         (payload) => {
+          console.log('Received real-time update for lesson:', payload);
+          console.log('New lesson data:', payload.new);
           setLesson(payload.new as Lesson);
           // Reset views when content updates
           setCurrentView('lesson');
@@ -79,7 +82,14 @@ export default function LessonDetailPage() {
           setUserAnswers({});
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Real-time subscription status:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.error('Real-time subscription error');
+        } else if (status === 'CLOSED') {
+          console.log('Real-time subscription closed');
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -146,6 +156,7 @@ export default function LessonDetailPage() {
       
       // If content is already a JSON string, parse it
       if (typeof lesson.content === 'string') {
+        // Check if it's already valid JSON
         const parsed = JSON.parse(lesson.content);
         
         // Check if this is an error content
@@ -156,7 +167,7 @@ export default function LessonDetailPage() {
           parsedLessonData = parsed;
         }
       } else {
-        // If content is already an object, check if it's an error
+        // If content is already an object
         if ((lesson.content as any).error && (lesson.content as any).message) {
           isContentError = true;
           parseError = new Error((lesson.content as any).message);
@@ -284,6 +295,14 @@ export default function LessonDetailPage() {
                         Array.isArray(parsedLessonData.content.sections) &&
                         parsedLessonData.content.sections.length > 0);
 
+  console.log('Lesson validation:', {
+    status: lesson.status,
+    hasContent: !!lesson.content,
+    hasJsonContent: !!lesson.json_content,
+    parsedData: !!parsedLessonData,
+    isContentValid
+  });
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
       <Toaster position="top-right" />
@@ -368,6 +387,7 @@ export default function LessonDetailPage() {
               <p className="text-xs text-gray-600 mt-1">Status: {lesson.status}</p>
               <p className="text-xs text-gray-600">Content: {lesson.content ? 'Yes' : 'No'}</p>
               <p className="text-xs text-gray-600">JSON Content: {lesson.json_content ? 'Yes' : 'No'}</p>
+              <p className="text-xs text-gray-600">Parsed Data: {parsedLessonData ? 'Yes' : 'No'}</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button

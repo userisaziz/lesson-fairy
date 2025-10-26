@@ -32,13 +32,14 @@ export async function POST(request: Request) {
 
     const lesson = await createLessonRecord(outline);
     
-    // Add lesson to the Vercel-compatible queue
-    const queue = VercelLessonQueue.getInstance();
-    await queue.addLesson(lesson.id, outline);
-    
     // Trigger background processing (this will run within Vercel's timeout limits)
     try {
-      await fetch('/api/processQueue', {
+      // Use absolute URL for server-side fetch
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}` 
+        : 'http://localhost:3000';
+        
+      await fetch(`${baseUrl}/api/processQueue`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

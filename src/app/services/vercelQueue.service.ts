@@ -22,7 +22,6 @@ export interface QueueItem {
 
 export class VercelLessonQueue {
   private static instance: VercelLessonQueue;
-  private queue: Map<string, QueueItem> = new Map();
 
   private constructor() {}
 
@@ -33,73 +32,51 @@ export class VercelLessonQueue {
     return VercelLessonQueue.instance;
   }
 
-  // Add a lesson to the queue
+  // Add a lesson to the queue (in this case, we'll work directly with the database)
   async addLesson(lessonId: string, outline: string): Promise<void> {
-    this.queue.set(lessonId, {
-      id: lessonId,
-      status: 'pending',
-      progress: 0,
-      outline,
-      createdAt: new Date().toISOString()
-    });
-  }
-
-  // Get lesson status
-  getLessonStatus(lessonId: string): QueueItem | null {
-    return this.queue.get(lessonId) || null;
+    // In this implementation, we don't need to store anything in memory
+    // The lesson is already in the database with status 'generating'
+    console.log(`Lesson ${lessonId} added to queue`);
   }
 
   // Process a lesson (designed to work within Vercel timeout limits)
-  async processLesson(lessonId: string): Promise<void> {
-    const item = this.queue.get(lessonId);
-    if (!item || item.status !== 'pending') {
-      return;
-    }
-
+  async processLesson(lessonId: string, outline: string): Promise<void> {
     try {
-      // Update status to processing
-      item.status = 'processing';
-      item.progress = 10;
-
+      console.log(`Processing lesson ${lessonId}`);
+      
+      // Update status to processing in database
+      // Note: We're not using the queue item here since we're working directly with DB
+      
       // Step 1: Generate main content (with minimal retries)
-      const prompt = buildLessonPrompt(item.outline);
-      const rawContent = await this.generateContent(prompt, item.outline);
+      const prompt = buildLessonPrompt(outline);
+      const rawContent = await this.generateContent(prompt, outline);
       const parsedContent = this.parseAndValidateContent(rawContent);
       
       // Post-process content
       this.postProcessContent(parsedContent);
       
-      // Update progress
-      item.progress = 30;
-      
       // Save initial content to database
       await updateLessonRecord(lessonId, parsedContent, 'generating');
       
-      // Update progress
-      item.progress = 50;
-      
       // Step 2: Generate visuals (minimal processing to stay within limits)
-      await this.enrichContentWithVisuals(lessonId, parsedContent, item);
-      
-      // Update progress
-      item.progress = 90;
+      await this.enrichContentWithVisuals(lessonId, parsedContent);
       
       // Final update
       await updateLessonRecord(lessonId, parsedContent, 'generated');
       
-      // Mark as completed
-      item.status = 'completed';
-      item.progress = 100;
-      
       console.log(`Lesson ${lessonId} processed successfully`);
     } catch (error: any) {
       console.error(`Error processing lesson ${lessonId}:`, error);
-      item.status = 'failed';
-      item.errorMessage = error.message || 'Unknown error';
-      item.progress = 100; // Mark as complete even on failure
+      const errorMessage = error.message || 'Unknown error';
       
       // Update database with error
-      await updateLessonError(lessonId, item.errorMessage || 'Unknown error');
+      try {
+        await updateLessonError(lessonId, errorMessage);
+      } catch (dbError) {
+        console.error(`Failed to update lesson error status for ${lessonId}:`, dbError);
+      }
+      
+      throw error; // Re-throw to be handled by the caller
     }
   }
 
@@ -165,7 +142,7 @@ export class VercelLessonQueue {
     }
   }
 
-  private async enrichContentWithVisuals(lessonId: string, content: LessonContent, item: QueueItem) {
+  private async enrichContentWithVisuals(lessonId: string, content: LessonContent) {
     if (!process.env.GEMINI_API_KEY || !content.content.sections) {
       return;
     }
@@ -186,9 +163,6 @@ export class VercelLessonQueue {
       try {
         const visual = await this.generateVisual(section.visuals);
         section.generatedVisual = visual || '';
-        
-        // Update progress
-        item.progress = 50 + Math.floor((i / sectionsToProcess.length) * 40);
         
         // Update database with progress
         await updateLessonRecord(lessonId, content, 'generating');
