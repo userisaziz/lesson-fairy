@@ -18,8 +18,15 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
   const sectionRefs = useRef<{[key: number]: HTMLDivElement | null}>({});
   const observer = useRef<IntersectionObserver | null>(null);
 
-  // Parse the lesson content
-  const lessonContent = lesson.json_content || (lesson.content ? JSON.parse(lesson.content) : null);
+  // Parse the lesson content safely
+  let lessonContent = null;
+  try {
+    lessonContent = lesson.json_content || (lesson.content ? 
+      (typeof lesson.content === 'string' ? JSON.parse(lesson.content) : lesson.content) : null);
+  } catch (e) {
+    console.error('Error parsing lesson content:', e);
+    lessonContent = null;
+  }
 
   // Set up intersection observer to track active section
   useEffect(() => {

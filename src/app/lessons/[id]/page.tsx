@@ -142,6 +142,7 @@ export default function LessonDetailPage() {
     if (lesson.content) {
       // Log the raw content for debugging
       console.log('Raw lesson content:', lesson.content);
+      console.log('Lesson status:', lesson.status);
       
       // If content is already a JSON string, parse it
       if (typeof lesson.content === 'string') {
@@ -163,6 +164,11 @@ export default function LessonDetailPage() {
           parsedLessonData = lesson.content;
         }
       }
+    }
+    
+    // Also check json_content field
+    if (lesson.json_content) {
+      parsedLessonData = lesson.json_content;
     }
   } catch (e: any) {
     console.error('Error parsing lesson content:', e);
@@ -269,12 +275,14 @@ export default function LessonDetailPage() {
   }
 
   // Check if content is valid with more comprehensive validation
-  const isContentValid = lesson.content && parsedLessonData && 
+  const isContentValid = lesson.status === 'generated' && 
+                        ((lesson.content || lesson.json_content) && 
+                        parsedLessonData && 
                         parsedLessonData.metadata && 
                         parsedLessonData.content &&
                         parsedLessonData.content.sections &&
                         Array.isArray(parsedLessonData.content.sections) &&
-                        parsedLessonData.content.sections.length > 0;
+                        parsedLessonData.content.sections.length > 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
@@ -320,7 +328,7 @@ export default function LessonDetailPage() {
             
             {currentView === 'lesson' && (
               <LessonView 
-                lesson={parsedLessonData} 
+                lesson={{...lesson, json_content: parsedLessonData}} 
                 onQuizStart={handleStartQuiz} 
               />
             )}
@@ -351,10 +359,16 @@ export default function LessonDetailPage() {
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3 mt-3 sm:mt-4">No Valid Content Available</h2>
             <p className="text-gray-600 mb-5 text-sm sm:text-base">
-              {lesson.content 
+              {lesson.content || lesson.json_content
                 ? "This lesson was generated but has invalid content structure." 
                 : "This lesson was generated but has no content."}
             </p>
+            <div className="bg-gray-50 rounded-lg p-4 mb-5 text-left">
+              <p className="text-xs text-gray-500">Debug info:</p>
+              <p className="text-xs text-gray-600 mt-1">Status: {lesson.status}</p>
+              <p className="text-xs text-gray-600">Content: {lesson.content ? 'Yes' : 'No'}</p>
+              <p className="text-xs text-gray-600">JSON Content: {lesson.json_content ? 'Yes' : 'No'}</p>
+            </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
                 onClick={() => router.push('/')}
