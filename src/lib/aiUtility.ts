@@ -4,6 +4,9 @@ import { GoogleGenAI } from "@google/genai";
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 3000; // 3 seconds
 
+// Add timeout configuration
+const API_TIMEOUT = 30000; // 30 seconds
+
 // Google Gemini integration 
 export const generateWithGemini = async (prompt: string) => {
   console.log('Using Gemini API key:', process.env.GEMINI_API_KEY);
@@ -20,10 +23,19 @@ export const generateWithGemini = async (prompt: string) => {
         apiKey: process.env.GEMINI_API_KEY,
       });
 
-      const response = await ai.models.generateContent({
+      // Add timeout to the API call
+      const responsePromise = ai.models.generateContent({
         model: "gemini-2.0-flash-001",
         contents: prompt,
       });
+      
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Gemini API request timed out')), API_TIMEOUT)
+      );
+      
+      // Race between API call and timeout
+      const response = await Promise.race([responsePromise, timeoutPromise]) as any;
       
       // Ensure we return a string, even if empty
       const content = response.text || '';

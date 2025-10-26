@@ -4,9 +4,9 @@ export function buildLessonPrompt(outline: string): string {
 
 CRITICAL REQUIREMENTS:
 1. Return ONLY valid JSON - no explanations, no additional text
-2. Create 4-6 main sections with comprehensive, detailed educational content
+2. Create 3-4 main sections with comprehensive, detailed educational content
 3. Each section should have 2-3 subsections for thorough coverage
-4. Generate 8-12 quiz questions (mix of easy, medium, and challenging difficulty)
+4. Generate 4-5 quiz questions (mix of easy, medium, and challenging difficulty)
 5. Content must be accurate, engaging, and educationally rigorous
 6. Include advanced concepts, technical details, and professional applications
 7. Provide multiple real-world examples, case studies, and practical implementations

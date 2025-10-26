@@ -2,10 +2,11 @@
 // It's designed to work within Vercel's timeout constraints
 
 import { LessonContent } from "@/types/lesson";
-import { generateDiagramWithHuggingFace, generateImageWithHuggingFace, generateWithGemini } from "@/lib/aiUtility";
+import { generateDiagramWithHuggingFace, generateImageWithHuggingFace } from "@/lib/aiUtility";
 import { buildImageDescriptionPrompt, buildLessonPrompt } from "./buildLessonPrompt.service";
 import { updateLessonError, updateLessonRecord } from "./database.service";
 import { cleanJsonString, logGenerationResult } from "@/lib/utilityFunctions";
+import { generateContent } from "./contentGenrationService";
 
 // Reduced retry configuration for Vercel compatibility
 const MAX_RETRIES = 1; // Minimal retries to stay within timeout limits
@@ -81,25 +82,8 @@ export class VercelLessonQueue {
   }
 
   private async generateContent(prompt: string, outline: string): Promise<string> {
-    if (!process.env.GEMINI_API_KEY) {
-      throw new Error('Gemini API key not configured');
-    }
-
-    console.log('Generating content with Gemini...');
-    
-    try {
-      const content = await generateWithGemini(prompt);
-      
-      if (!content?.trim()) {
-        throw new Error('Gemini returned empty response');
-      }
-
-      console.log('✓ Gemini generation succeeded');
-      return content;
-    } catch (error: any) {
-      console.error(`Gemini generation failed:`, error);
-      throw new Error(`Failed to generate content: ${error.message}`);
-    }
+    // Use the shared generateContent function which has proper error handling and timeout
+    return await generateContent(prompt, outline);
   }
 
   private parseAndValidateContent(rawContent: string): LessonContent {
@@ -211,7 +195,14 @@ async function generateImage(description: string): Promise<string> {
     if (!image && process.env.GEMINI_API_KEY) {
       console.log('Falling back to image description with Gemini...');
       const prompt = buildImageDescriptionPrompt(description);
-      image = await generateWithGemini(prompt);
+      // Use the imported generateContent function which has proper timeout handling
+      try {
+        const content = await generateContent(prompt, description);
+        return content || '';
+      } catch (error) {
+        console.error('Gemini fallback failed:', error);
+        return '';
+      }
     }
     
     return image || '';
