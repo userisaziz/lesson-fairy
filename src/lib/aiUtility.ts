@@ -1,11 +1,11 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Add retry configuration
 const MAX_RETRIES = 1;
 const RETRY_DELAY = 3000; // 3 seconds
 
 // Add timeout configuration
-const API_TIMEOUT = 8000; // 30 seconds
+const API_TIMEOUT = 30000; // 30 seconds
 
 // Google Gemini integration 
 export const generateWithGemini = async (prompt: string) => {
@@ -19,15 +19,10 @@ export const generateWithGemini = async (prompt: string) => {
   while (attempts < MAX_RETRIES) {
     console.log(`Attempt ${attempts + 1}`);
     try {
-      const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
-      });
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest"});
 
-      // Add timeout to the API call
-      const responsePromise = ai.models.generateContent({
-        model: "gemini-1.5-flash-latest",
-        contents: prompt,
-      });
+      const responsePromise = model.generateContent(prompt);
       
       // Create timeout promise
       const timeoutPromise = new Promise((_, reject) => 
@@ -35,10 +30,12 @@ export const generateWithGemini = async (prompt: string) => {
       );
       
       // Race between API call and timeout
-      const response = await Promise.race([responsePromise, timeoutPromise]) as any;
+      console.log('Before Promise.race');
+      const result = await Promise.race([responsePromise, timeoutPromise]) as any;
+      console.log('After Promise.race');
       
-      // Ensure we return a string, even if empty
-      const content = response.text || '';
+      const response = result.response;
+      const content = response.text();
       
       if (!content.trim()) {
         throw new Error('Gemini returned empty response');
