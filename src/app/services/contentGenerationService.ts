@@ -28,7 +28,10 @@ export async function generateLessonContentAsync(lessonId: string, outline: stri
     console.log(`Post-processed content for lesson ${lessonId}`);
     
     // Save initial content to database
-    await updateLessonRecord(lessonId, parsedContent, 'generating'); // Keep in generating state
+    await updateLessonRecord(lessonId, { 
+      json_content: parsedContent,
+      status: 'generating'
+    });
     console.log(`Saved initial content to database for lesson ${lessonId}`);
     
     // Step 2: Generate visuals asynchronously
@@ -36,7 +39,10 @@ export async function generateLessonContentAsync(lessonId: string, outline: stri
     console.log(`Finished generating visuals for lesson ${lessonId}`);
     
     // Step 3: Final update
-    await updateLessonRecord(lessonId, parsedContent, 'generated');
+    await updateLessonRecord(lessonId, { 
+      json_content: parsedContent,
+      status: 'generated'
+    });
     console.log(`Final update completed for lesson ${lessonId}`);
     
     console.log('Content generation completed successfully');
@@ -240,7 +246,10 @@ export async function enrichContentWithVisuals(lessonId: string, content: Lesson
       console.log(`Generated visual for section ${section.title}: ${!!visual}`);
       
       // Update progress in database after each visual generation
-      await updateLessonRecord(lessonId, content, 'generating');
+      await updateLessonRecord(lessonId, { 
+        json_content: content,
+        status: 'generating'
+      });
     } catch (error: any) {
       console.error(`Error generating ${section.visuals.type} for "${section.title}":`, error);
       section.generatedVisual = ''; // Set empty string to avoid breaking UI

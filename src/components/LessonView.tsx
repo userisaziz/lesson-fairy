@@ -5,7 +5,7 @@ import { Lesson } from '@/types/lesson';
 import TableOfContents from './TableOfContents';
 import DiagramRenderer from './DiagramRenderer';
 import ImageRenderer from './ImageRenderer';
-import CodeExampleRenderer from './CodeExampleRenderer';
+import CodeRenderer from './CodeRenderer';
 
 interface LessonViewProps {
   lesson: Lesson;
@@ -324,13 +324,13 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
                   </div>
                 )}
                 
-                {/* Code Example - Only show for technical/programming topics */}
-                {section.codeExample && section.codeExample.code && section.codeExample.code.trim() !== '' && (
+                {/* Code Example */}
+                {section.codeExample && section.codeExample.code && (
                   <div className="mb-6">
-                    <CodeExampleRenderer example={section.codeExample} />
+                    <CodeRenderer code={section.codeExample.code} />
                   </div>
                 )}
-                
+
                 <div className="prose max-w-none">
                   {formatContent(section.content)}
                 </div>
