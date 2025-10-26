@@ -24,6 +24,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ onLessonGenerated }) 
     setLoading(true);
     
     try {
+      // First, create the lesson record
       const response = await fetch('/api/generateLesson', {
         method: 'POST',
         headers: {
@@ -38,6 +39,21 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ onLessonGenerated }) 
       }
 
       const data = await response.json();
+      
+      // Then, trigger the content generation in the background
+      try {
+        await fetch('/api/generateLessonContent', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ lessonId: data.id, outline: userInput }),
+        });
+      } catch (contentError) {
+        console.error('Failed to trigger content generation:', contentError);
+        // This is non-critical - the lesson will still be created
+      }
+      
       toast.success('Lesson generation started!');
       onLessonGenerated(data.id);
       
