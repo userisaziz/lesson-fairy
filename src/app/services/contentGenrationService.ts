@@ -48,6 +48,7 @@ export async function generateContent(prompt: string, outline: string): Promise<
   console.log('Attempting to generate content with Gemini...');
   
   try {
+    console.log('Using Gemini...');
     const content = await generateWithGemini(prompt);
     
     if (!content?.trim()) {

@@ -6,6 +6,7 @@ const RETRY_DELAY = 3000; // 3 seconds
 
 // Google Gemini integration 
 export const generateWithGemini = async (prompt: string) => {
+  console.log('Using Gemini API key:', process.env.GEMINI_API_KEY);
   if (!process.env.GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY is not set');
   }
@@ -13,6 +14,7 @@ export const generateWithGemini = async (prompt: string) => {
   let attempts = 0;
   
   while (attempts < MAX_RETRIES) {
+    console.log(`Attempt ${attempts + 1}`);
     try {
       const ai = new GoogleGenAI({
         apiKey: process.env.GEMINI_API_KEY,
