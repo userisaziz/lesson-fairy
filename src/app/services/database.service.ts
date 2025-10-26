@@ -56,12 +56,17 @@ export async function updateLessonRecord(
 export async function updateLessonError(lessonId: string, errorMessage: string) {
   console.log(`Updating lesson ${lessonId} with error status`);
   
+  // Truncate error message if too long to avoid database issues
+  const truncatedErrorMessage = errorMessage.length > 1000 
+    ? errorMessage.substring(0, 1000) + '... (truncated)'
+    : errorMessage;
+  
   // Update lesson status to 'error' to indicate failure to the UI
   const { error } = await supabase
     .from('lessons')
     .update({
       status: 'error',
-      error_message: errorMessage, // Store the actual error message
+      error_message: truncatedErrorMessage, // Store the actual error message
     })
     .eq('id', lessonId);
 
@@ -70,6 +75,6 @@ export async function updateLessonError(lessonId: string, errorMessage: string) 
   } else {
     console.log('Lesson error status updated successfully:', lessonId);
     // Log the actual error for debugging
-    console.error('Lesson generation error for lesson', lessonId, ':', errorMessage);
+    console.error('Lesson generation error for lesson', lessonId, ':', truncatedErrorMessage);
   }
 }
