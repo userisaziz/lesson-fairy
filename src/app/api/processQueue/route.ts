@@ -1,86 +1,31 @@
 export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { VercelLessonQueue } from '@/app/services/vercelQueue.service';
-import { supabase } from '@/lib/supabaseClient';
+import { getLesson } from '@/app/services/database.service';
 
 export async function POST(request: Request) {
   try {
-    const { lessonId } = await request.json();
+    const { lessonId, step, sectionIndex } = await request.json();
 
-    if (!lessonId) {
+    if (!lessonId || !step) {
       return NextResponse.json(
-        { error: 'Lesson ID is required' }, 
+        { error: 'Lesson ID and step are required' }, 
         { status: 400 }
       );
     }
 
-    // Fetch the lesson from the database to get the outline
-    const { data: lesson, error } = await supabase
-      .from('lessons')
-      .select('outline')
-      .eq('id', lessonId)
-      .single();
+    const lesson = await getLesson(lessonId);
 
-    if (error || !lesson) {
-      return NextResponse.json(
-        { error: 'Lesson not found in database' }, 
-        { status: 404 }
-      );
-    }
-
-    // Get the queue instance
     const queue = VercelLessonQueue.getInstance();
-    
-    // Process the lesson (within Vercel timeout limits)
-    await queue.processLesson(lessonId, lesson.outline);
+    await queue.processStep(lessonId, step, lesson.outline);
 
     return NextResponse.json({ 
-      message: 'Lesson processing completed',
-      lessonId
+      message: `Step '${step}' processed successfully for lesson ${lessonId}`,
     });
   } catch (error: any) {
-    console.error('Error processing queue:', error);
+    console.error(`Error processing step for lesson:', error`);
     return NextResponse.json(
-      { error: error.message || 'Failed to process lesson' }, 
-      { status: 500 }
-    );
-  }
-}
-
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const lessonId = searchParams.get('lessonId');
-    
-    if (!lessonId) {
-      return NextResponse.json(
-        { error: 'Lesson ID is required' }, 
-        { status: 400 }
-      );
-    }
-
-    // Fetch the lesson status from the database
-    const { data: lesson, error } = await supabase
-      .from('lessons')
-      .select('status')
-      .eq('id', lessonId)
-      .single();
-
-    if (error || !lesson) {
-      return NextResponse.json(
-        { error: 'Lesson not found in database' }, 
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
-      id: lessonId,
-      status: lesson.status
-    });
-  } catch (error: any) {
-    console.error('Error fetching queue status:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to fetch lesson status' }, 
+      { error: error.message || 'Failed to process step' }, 
       { status: 500 }
     );
   }

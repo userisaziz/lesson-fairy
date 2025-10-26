@@ -33,24 +33,7 @@ export async function POST(request: Request) {
 
     const lesson = await createLessonRecord(outline);
     
-    // Trigger background processing (this will run within Vercel's timeout limits)
-    try {
-      // Use absolute URL for server-side fetch
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
-        ? `https://${process.env.VERCEL_URL}` 
-        : 'http://localhost:3000';
-        
-      await fetch(`${baseUrl}/api/processQueue`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ lessonId: lesson.id }),
-      });
-    } catch (processError) {
-      console.error('Failed to trigger queue processing:', processError);
-      // This is non-critical - the lesson will still be created
-    }
+
 
     return NextResponse.json(lesson);
   } catch (error: any) {

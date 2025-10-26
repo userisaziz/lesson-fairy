@@ -76,7 +76,8 @@ export default function Home() {
 
   const handleLessonGenerated = (id: string) => {
     setLessonId(id);
-    setTimeout(fetchLessons, 1000);
+    // The new lesson will be added to the list via the real-time subscription.
+    // No need to refetch here.
   };
 
   return (

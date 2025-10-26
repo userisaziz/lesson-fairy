@@ -1,8 +1,8 @@
 import { supabase } from "@/lib/supabaseClient";
 import { extractFirstDiagram } from "@/lib/utilityFunctions";
-import { LessonContent } from "@/types/lesson";
+import { Lesson, LessonContent } from "@/types/lesson";
 
-export async function createLessonRecord(outline: string) {
+export async function createLessonRecord(outline: string): Promise<Lesson> {
   console.log('Creating lesson record with outline:', outline);
 
   const { data: lesson, error } = await supabase
@@ -10,7 +10,7 @@ export async function createLessonRecord(outline: string) {
     .insert([{
       outline,
       status: 'generating',
-      content: null,
+      progress: 0,
     }])
     .select()
     .single();
@@ -24,106 +24,52 @@ export async function createLessonRecord(outline: string) {
   return lesson;
 }
 
-export async function updateLessonRecord(
-  lessonId: string, 
-  content: LessonContent, 
-  status: string = 'generated'
-) {
-  console.log('Updating lesson in database...', { lessonId, status });
+export async function getLesson(lessonId: string): Promise<Lesson> {
+  const { data: lesson, error } = await supabase
+    .from('lessons')
+    .select('*')
+    .eq('id', lessonId)
+    .single();
 
-  // Validate content before saving
-  if (!content || typeof content !== 'object') {
-    throw new Error('Invalid content provided for lesson update');
+  if (error || !lesson) {
+    throw new Error('Lesson not found');
   }
 
-  try {
-    const { error } = await supabase
-      .from('lessons')
-      .update({
-        content: JSON.stringify(content),
-        status,
-        diagram_svg: extractFirstDiagram(content),
-      })
-      .eq('id', lessonId);
-
-    if (error) {
-      console.error('Error updating lesson:', error);
-      throw new Error(`Failed to update lesson: ${error.message}`);
-    }
-
-    console.log('Lesson updated successfully:', lessonId);
-  } catch (error: any) {
-    console.error('Unexpected error updating lesson:', error);
-    throw new Error(`Failed to update lesson: ${error.message || 'Unknown error'}`);
-  }
+  return lesson;
 }
 
-export async function updateLessonError(lessonId: string, errorMessage: string) {
+export async function updateLessonRecord(lessonId: string, data: Partial<Lesson>): Promise<void> {
+  console.log('Updating lesson in database...', { lessonId, data });
+
+  const { error } = await supabase
+    .from('lessons')
+    .update(data)
+    .eq('id', lessonId);
+
+  if (error) {
+    console.error('Error updating lesson:', error);
+    throw new Error(`Failed to update lesson: ${error.message}`);
+  }
+
+  console.log('Lesson updated successfully:', lessonId);
+}
+
+export async function updateLessonContent(lessonId: string, content: LessonContent): Promise<void> {
+  await updateLessonRecord(lessonId, { 
+    json_content: content,
+    diagram_svg: extractFirstDiagram(content),
+  });
+}
+
+export async function updateLessonError(lessonId: string, errorMessage: string): Promise<void> {
   console.log(`Updating lesson ${lessonId} with error status`);
   
-  // Truncate error message if too long to avoid database issues
   const truncatedErrorMessage = errorMessage.length > 1000 
     ? errorMessage.substring(0, 1000) + '... (truncated)'
     : errorMessage;
   
-  try {
-    // Update lesson status to 'error' to indicate failure to the UI
-    const { error } = await supabase
-      .from('lessons')
-      .update({
-        status: 'error',
-        error_message: truncatedErrorMessage, // Store the actual error message
-      })
-      .eq('id', lessonId);
-
-    if (error) {
-      console.error('Error updating lesson with error status:', error);
-      
-      // If the error is due to missing column, try without error_message
-      if (error.message && error.message.includes('error_message')) {
-        console.log('Retrying update without error_message column...');
-        const { error: retryError } = await supabase
-          .from('lessons')
-          .update({
-            status: 'error'
-          })
-          .eq('id', lessonId);
-          
-        if (retryError) {
-          console.error('Retry also failed:', retryError);
-          throw new Error(`Failed to update lesson error status: ${retryError.message}`);
-        } else {
-          console.log('Lesson error status updated successfully (without error_message):', lessonId);
-        }
-      } else {
-        throw new Error(`Failed to update lesson error status: ${error.message}`);
-      }
-    } else {
-      console.log('Lesson error status updated successfully:', lessonId);
-      // Log the actual error for debugging
-      console.error('Lesson generation error for lesson', lessonId, ':', truncatedErrorMessage);
-    }
-  } catch (err: any) {
-    console.error('Unexpected error in updateLessonError:', err);
-    
-    // Fallback: try updating without error_message
-    try {
-      const { error: fallbackError } = await supabase
-        .from('lessons')
-        .update({
-          status: 'error'
-        })
-        .eq('id', lessonId);
-        
-      if (fallbackError) {
-        console.error('Fallback update also failed:', fallbackError);
-        throw new Error(`Fallback update failed: ${fallbackError.message}`);
-      } else {
-        console.log('Fallback lesson error status updated successfully:', lessonId);
-      }
-    } catch (fallbackErr: any) {
-      console.error('Fallback update threw error:', fallbackErr);
-      throw new Error(`Fallback update error: ${fallbackErr.message || 'Unknown error'}`);
-    }
-  }
+  await updateLessonRecord(lessonId, { 
+    status: 'error',
+    error_message: truncatedErrorMessage,
+  });
 }

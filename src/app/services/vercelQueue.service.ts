@@ -1,21 +1,9 @@
-// This service handles lesson generation using Vercel's infrastructure
-// It's designed to work within Vercel's timeout constraints
-
 import { LessonContent } from "@/types/lesson";
 import { generateDiagramWithHuggingFace, generateImageWithHuggingFace } from "@/lib/aiUtility";
 import { buildImageDescriptionPrompt, buildLessonPrompt } from "./buildLessonPrompt.service";
-import { updateLessonError, updateLessonRecord } from "./database.service";
+import { updateLessonError, updateLessonRecord, getLesson, updateLessonContent } from "./database.service";
 import { cleanJsonString, logGenerationResult } from "@/lib/utilityFunctions";
-import { generateContent } from "./contentGenrationService";
-
-export interface QueueItem {
-  id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress: number;
-  outline: string;
-  errorMessage?: string;
-  createdAt: string;
-}
+import { generateContent } from "./contentGenerationService";
 
 export class VercelLessonQueue {
   private static instance: VercelLessonQueue;
@@ -29,56 +17,61 @@ export class VercelLessonQueue {
     return VercelLessonQueue.instance;
   }
 
-  // Add a lesson to the queue (in this case, we'll work directly with the database)
-  async addLesson(lessonId: string, outline: string): Promise<void> {
-    // In this implementation, we don't need to store anything in memory
-    // The lesson is already in the database with status 'generating'
-    console.log(`Lesson ${lessonId} added to queue`);
-  }
-
-  // Process a lesson (designed to work within Vercel timeout limits)
-  async processLesson(lessonId: string, outline: string): Promise<void> {
-    try {
-      console.log(`Processing lesson ${lessonId}`);
-      
-      // Update status to processing in database
-      // Note: We're not using the queue item here since we're working directly with DB
-      
-      // Step 1: Generate main content
-      // Let generateContent handle its own timeout (45s in aiUtility.ts)
-      const prompt = buildLessonPrompt(outline);
-      const rawContent = await generateContent(prompt, outline);
-      const parsedContent = this.parseAndValidateContent(rawContent);
-      
-      // Post-process content
-      this.postProcessContent(parsedContent);
-      
-      // Save initial content to database
-      await updateLessonRecord(lessonId, parsedContent, 'generating');
-      
-      // Step 2: Generate visuals (minimal processing to stay within limits)
-      await this.enrichContentWithVisuals(lessonId, parsedContent);
-      
-      // Final update
-      await updateLessonRecord(lessonId, parsedContent, 'generated');
-      
-      console.log(`Lesson ${lessonId} processed successfully`);
-    } catch (error: any) {
-      console.error(`Error processing lesson ${lessonId}:`, error);
-      const errorMessage = error.message || 'Unknown error';
-      
-      // Update database with error
-      try {
-        await updateLessonError(lessonId, errorMessage);
-      } catch (dbError) {
-        console.error(`Failed to update lesson error status for ${lessonId}:`, dbError);
-      }
-      
-      throw error; // Re-throw to be handled by the caller
+  async processStep(lessonId: string, step: string, outline: string): Promise<any> {
+    switch (step) {
+      case 'generateContent':
+        return this._generateContent(lessonId, outline);
+      case 'parseAndSaveContent':
+        const lesson = await getLesson(lessonId);
+        if (!lesson.raw_content) throw new Error('Raw content not found');
+        return this._parseAndSaveContent(lessonId, lesson.raw_content);
+      case 'generateVisuals':
+        const lessonWithContent = await getLesson(lessonId);
+        if (!lessonWithContent.json_content) throw new Error('Lesson content not found');
+        return this._generateAllVisuals(lessonId, lessonWithContent.json_content);
+      case 'finalize':
+        return this._finalizeLesson(lessonId);
+      default:
+        throw new Error(`Unknown step: ${step}`);
     }
   }
 
-  private parseAndValidateContent(rawContent: string): LessonContent {
+  private async _generateContent(lessonId: string, outline: string): Promise<void> {
+    console.log(`[Step 1] Generating content for lesson ${lessonId}`);
+    const prompt = buildLessonPrompt(outline);
+    const rawContent = await generateContent(prompt, outline);
+    await updateLessonRecord(lessonId, { raw_content: rawContent, progress: 10 });
+  }
+
+  private async _parseAndSaveContent(lessonId: string, rawContent: string): Promise<void> {
+    console.log(`[Step 2] Parsing content for lesson ${lessonId}`);
+    const parsedContent = this._parseAndValidateContent(rawContent);
+    this._postProcessContent(parsedContent);
+    await updateLessonRecord(lessonId, { json_content: parsedContent, progress: 30 });
+  }
+
+  private async _generateAllVisuals(lessonId: string, content: LessonContent): Promise<void> {
+    console.log(`[Step 3] Generating visuals for lesson ${lessonId}`);
+    if (!content.content.sections) return;
+
+    for (let i = 0; i < content.content.sections.length; i++) {
+      const section = content.content.sections[i];
+      if (section.visuals?.description) {
+        const visual = await this._generateVisual(section.visuals);
+        section.generatedVisual = visual || '';
+      }
+    }
+
+    await updateLessonContent(lessonId, content);
+    await updateLessonRecord(lessonId, { progress: 90 });
+  }
+
+  private async _finalizeLesson(lessonId: string): Promise<void> {
+    console.log(`[Step 4] Finalizing lesson ${lessonId}`);
+    await updateLessonRecord(lessonId, { status: 'generated', progress: 100 });
+  }
+
+  private _parseAndValidateContent(rawContent: string): LessonContent {
     console.log('Parsing and validating content...');
     
     const cleanContent = cleanJsonString(rawContent);
@@ -106,11 +99,9 @@ export class VercelLessonQueue {
     }
   }
 
-  private postProcessContent(content: LessonContent) {
-    // Minimal post-processing to save time
+  private _postProcessContent(content: LessonContent): void {
     if (content.content?.sections) {
       for (const section of content.content.sections) {
-        // Remove empty code examples quickly
         if (section.codeExample && (!section.codeExample.code || section.codeExample.code.trim() === '')) {
           delete section.codeExample;
         }
@@ -118,40 +109,7 @@ export class VercelLessonQueue {
     }
   }
 
-  private async enrichContentWithVisuals(lessonId: string, content: LessonContent) {
-    if (!process.env.GEMINI_API_KEY || !content.content.sections) {
-      return;
-    }
-
-    console.log('Generating visuals for lesson sections...');
-
-    // Only generate visuals for the first 2 sections to stay within time limits
-    const sectionsToProcess = content.content.sections.slice(0, 2);
-    
-    for (let i = 0; i < sectionsToProcess.length; i++) {
-      const section = sectionsToProcess[i];
-      if (!section.visuals?.description) {
-        continue;
-      }
-
-      console.log(`Generating ${section.visuals.type} for: ${section.title}`);
-      
-      try {
-        const visual = await this.generateVisual(section.visuals);
-        section.generatedVisual = visual || '';
-        
-        // Update database with progress
-        await updateLessonRecord(lessonId, content, 'generating');
-      } catch (error: any) {
-        console.error(`Error generating ${section.visuals.type} for "${section.title}":`, error);
-        section.generatedVisual = '';
-      }
-      
-      console.log(`Visual generation complete for: ${section.title}`);
-    }
-  }
-
-  private async generateVisual(visualConfig: { description: string; type: string }): Promise<string> {
+  private async _generateVisual(visualConfig: { description: string; type: string }): Promise<string> {
     try {
       if (visualConfig.type === 'diagram') {
         return await generateDiagram(visualConfig.description);
@@ -188,7 +146,6 @@ async function generateImage(description: string): Promise<string> {
       console.log('Falling back to image description with Gemini...');
       const prompt = buildImageDescriptionPrompt(description);
       
-      // Let generateContent handle its own timeout
       try {
         const content = await generateContent(prompt, description);
         return content || '';

@@ -9,6 +9,10 @@ export type Lesson = {
   // Bonus fields for images
   image_url?: string | null;
   diagram_svg?: string | null;
+  // Progress tracking
+  progress?: number;
+  // Raw content from AI
+  raw_content?: string;
 };
 
 export interface LessonContent {

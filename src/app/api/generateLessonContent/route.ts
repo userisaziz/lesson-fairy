@@ -1,6 +1,6 @@
 export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
-import { generateLessonContentAsync } from '@/app/services/contentGenrationService';
+import { generateLessonContentAsync } from '@/app/services/contentGenerationService';
 
 export async function POST(request: Request) {
   try {

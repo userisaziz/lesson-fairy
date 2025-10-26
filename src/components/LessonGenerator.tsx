@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import toast from 'react-hot-toast';
+import { useLessonGenerator } from '@/hooks/useLessonGenerator';
 
 interface LessonGeneratorProps {
   onLessonGenerated: (lessonId: string) => void;
@@ -10,61 +9,11 @@ interface LessonGeneratorProps {
 
 const LessonGenerator: React.FC<LessonGeneratorProps> = ({ onLessonGenerated }) => {
   const [userInput, setUserInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const { loading, progress, generateLesson } = useLessonGenerator({ onLessonGenerated });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!userInput.trim()) {
-      toast.error('Please enter a lesson topic');
-      return;
-    }
-
-    setLoading(true);
-    
-    try {
-      // First, create the lesson record
-      const response = await fetch('/api/generateLesson', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ outline: userInput }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate lesson');
-      }
-
-      const data = await response.json();
-      
-      // Then, trigger the content generation in the background
-      try {
-        await fetch('/api/generateLessonContent', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ lessonId: data.id, outline: userInput }),
-        });
-      } catch (contentError) {
-        console.error('Failed to trigger content generation:', contentError);
-        // This is non-critical - the lesson will still be created
-      }
-      
-      toast.success('Lesson generation started!');
-      onLessonGenerated(data.id);
-      
-      router.push(`/lessons/${data.id}`);
-    } catch (error: any) {
-      console.error('Error generating lesson:', error);
-      toast.error(error.message || 'Failed to generate lesson. Please try again.');
-    } finally {
-      setLoading(false);
-      setUserInput('');
-    }
+    generateLesson(userInput);
   };
 
   return (
@@ -97,6 +46,12 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ onLessonGenerated }) 
               />
             </div>
             
+            {loading && (
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading || !userInput.trim()}
@@ -108,7 +63,7 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ onLessonGenerated }) 
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Generating your lesson...
+                  Generating your lesson... ({progress}%)
                 </>
               ) : (
                 <>
