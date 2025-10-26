@@ -6,13 +6,5 @@
   },
   "github": {
     "silent": true
-  },
-  "functions": {
-    "app/api/**/*.ts": {
-      "maxDuration": 60
-    },
-    "api/**/*.ts": {
-      "maxDuration": 60
-    }
   }
 }
