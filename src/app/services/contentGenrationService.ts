@@ -7,6 +7,7 @@ import { LessonContent } from "@/types/lesson";
 // Add retry configuration
 const MAX_RETRIES = 2; // Reduced retries to avoid timeouts
 const RETRY_DELAY = 1000; // Reduced delay
+const REQUEST_TIMEOUT = 25000; // 25 seconds timeout for requests
 
 export async function generateLessonContentAsync(lessonId: string, outline: string) {
   try {
@@ -49,7 +50,13 @@ export async function generateContent(prompt: string, outline: string): Promise<
   
   try {
     console.log('Using Gemini...');
-    const content = await generateWithGemini(prompt);
+    // Add timeout to the generateWithGemini call
+    const contentPromise = generateWithGemini(prompt);
+    const timeoutPromise = new Promise<string>((_, reject) => 
+      setTimeout(() => reject(new Error('Gemini request timeout after 25 seconds')), REQUEST_TIMEOUT)
+    );
+    
+    const content = await Promise.race([contentPromise, timeoutPromise]);
     
     if (!content?.trim()) {
       throw new Error('Gemini returned empty response');
@@ -261,7 +268,19 @@ export async function generateImage(description: string): Promise<string> {
     if (!image && process.env.GEMINI_API_KEY) {
       console.log('Falling back to image description with Gemini...');
       const prompt = buildImageDescriptionPrompt(description);
-      image = await generateWithGemini(prompt);
+      // Add timeout to the generateWithGemini call
+      const contentPromise = generateWithGemini(prompt);
+      const timeoutPromise = new Promise<string>((_, reject) => 
+        setTimeout(() => reject(new Error('Gemini fallback timeout after 25 seconds')), 25000)
+      );
+      
+      try {
+        const content = await Promise.race([contentPromise, timeoutPromise]);
+        return content || '';
+      } catch (error) {
+        console.error('Gemini fallback failed:', error);
+        return '';
+      }
     }
     
     return image || '';
