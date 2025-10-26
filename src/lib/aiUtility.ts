@@ -25,7 +25,7 @@ export const generateWithGemini = async (prompt: string) => {
 
       // Add timeout to the API call
       const responsePromise = ai.models.generateContent({
-        model: "gemini-2.0-flash-001",
+        model: "gemini-1.5-flash-latest",
         contents: prompt,
       });
       
