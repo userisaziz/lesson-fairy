@@ -1,12 +1,16 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ApiError } from "@google/genai";
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 2000; // 2 seconds
+const REQUEST_TIMEOUT = 30000; // 30 seconds timeout
 
 export const generateWithGemini = async (prompt: string): Promise<string> => {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not set");
   }
+
+  // Log the prompt length for debugging (but not the actual prompt for privacy)
+  console.log(`[Gemini] Generating content with prompt length: ${prompt.length} characters`);
 
   // Initialize with the new SDK syntax
   const ai = new GoogleGenAI({
@@ -20,20 +24,45 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
     try {
       console.log(`[Gemini] Attempt ${attempts} generating content...`);
 
-      // Use the correct method from the new SDK
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+      // Use a more reliable model name and add timeout configuration
+      const responsePromise = ai.models.generateContent({
+        model: "gemini-2.0-flash-001", // Updated to a known model
         contents: prompt,
       });
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout after 30 seconds')), REQUEST_TIMEOUT)
+      );
 
-      const text = response.text;
+      const response: any = await Promise.race([responsePromise, timeoutPromise]);
+
+      // Check if we have a valid response
+      if (!response || typeof response !== 'object') {
+        throw new Error("Invalid response from Gemini API");
+      }
+
+      // Extract text from response
+      const text = typeof response.text === 'string' ? response.text : 
+                   typeof response.text === 'function' ? response.text() : 
+                   JSON.stringify(response.text);
 
       if (!text) throw new Error("Gemini returned empty response");
 
-      console.log(`[Gemini] Successfully generated content`);
+      console.log(`[Gemini] Successfully generated content with ${text.length} characters`);
       return text;
     } catch (error: any) {
       console.error(`[Gemini] Error on attempt ${attempts}:`, error.message);
+      console.error(`[Gemini] Error stack:`, error.stack);
+
+      // Handle specific API errors
+      if (error instanceof ApiError) {
+        console.error(`[Gemini] API Error - Status: ${error.status}`);
+      }
+
+      // If it's a timeout error, don't retry
+      if (error.message.includes('timeout')) {
+        throw new Error(`Gemini API timeout: ${error.message}`);
+      }
 
       if (attempts >= MAX_RETRIES) {
         throw new Error(
@@ -41,6 +70,7 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
         );
       }
 
+      console.log(`[Gemini] Waiting ${RETRY_DELAY * attempts}ms before retry...`);
       await new Promise((res) => setTimeout(res, RETRY_DELAY * attempts));
     }
   }
