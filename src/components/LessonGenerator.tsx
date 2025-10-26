@@ -33,7 +33,8 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ onLessonGenerated }) 
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate lesson');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate lesson');
       }
 
       const data = await response.json();
@@ -41,9 +42,9 @@ const LessonGenerator: React.FC<LessonGeneratorProps> = ({ onLessonGenerated }) 
       onLessonGenerated(data.id);
       
       router.push(`/lessons/${data.id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating lesson:', error);
-      toast.error('Failed to generate lesson. Please try again.');
+      toast.error(error.message || 'Failed to generate lesson. Please try again.');
     } finally {
       setLoading(false);
       setUserInput('');

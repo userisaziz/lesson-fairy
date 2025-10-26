@@ -56,13 +56,12 @@ export async function updateLessonRecord(
 export async function updateLessonError(lessonId: string, errorMessage: string) {
   console.log(`Updating lesson ${lessonId} with error status`);
   
-  // Instead of storing error content, we'll keep the lesson in "generating" status
-  // and log the error for debugging purposes
+  // Update lesson status to 'error' to indicate failure to the UI
   const { error } = await supabase
     .from('lessons')
     .update({
-      status: 'generating', // Keep in generating state
-      // Don't update content - leave it as null or previous valid content
+      status: 'error',
+      error_message: errorMessage, // Store the actual error message
     })
     .eq('id', lessonId);
 
