@@ -3,7 +3,7 @@ import { GoogleGenAI, ApiError } from "@google/genai";
 const REQUEST_TIMEOUT = 55000; // 55 seconds to work with Vercel's 60s limit
 
 /**
- * Gemini content generation with streaming for better performance
+ * Gemini content generation using REST API (more reliable for serverless)
  */
 export const generateWithGemini = async (prompt: string): Promise<string> => {
   if (!process.env.GEMINI_API_KEY) {
@@ -11,59 +11,92 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
   }
 
   console.log(`[Gemini] Starting generation (prompt: ${prompt.length} chars)`);
+  
+  // Use REST API directly - more reliable in serverless environments
+  return await generateWithGeminiREST(prompt);
+};
 
-  const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY,
-  });
+/**
+ * Direct REST API call (Primary method for Vercel)
+ */
+export const generateWithGeminiREST = async (prompt: string): Promise<string> => {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not set");
+  }
+
+  console.log(`[Gemini REST] Starting generation`);
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.log(`[Gemini REST] Aborting after ${REQUEST_TIMEOUT}ms`);
+    controller.abort();
+  }, REQUEST_TIMEOUT);
 
   try {
-    console.log(`[Gemini] Calling API with streaming...`);
-
-    const result = await executeWithTimeout(
-      async () => {
-        const stream = await ai.models.generateContentStream({
-          model: "gemini-2.0-flash-001", // More stable model
-          contents: prompt,
-          config: {
-            temperature: 0.7,
-            maxOutputTokens: 3000, // Reduced for faster generation
-          },
-        });
-
-        let fullText = '';
-        let chunkCount = 0;
-        for await (const chunk of stream) {
-          // Extract text from chunk candidates
-          const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (chunkText) {
-            fullText += chunkText;
-            chunkCount++;
-            if (chunkCount % 9 === 0) { // Log every 9 chunks to reduce noise
-              console.log(`[Gemini] Received chunk ${chunkCount} (${chunkText.length} chars)`);
-            }
-          }
-        }
-        
-        console.log(`[Gemini] Stream complete with ${chunkCount} chunks, total length: ${fullText.length}`);
-        return { text: () => fullText };
-      },
-      REQUEST_TIMEOUT,
-      `Gemini API timeout (${REQUEST_TIMEOUT}ms)`
-    );
-
-    // Extract text from response
-    const text = extractTextFromResponse(result);
+    console.log(`[Gemini REST] Calling API...`);
     
-    if (!text || text.trim().length === 0) {
-      throw new Error("Empty response from Gemini");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 3000,
+          topP: 0.8,
+          topK: 40,
+        },
+        safetySettings: [
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: "BLOCK_ONLY_HIGH"
+          },
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH",
+            threshold: "BLOCK_ONLY_HIGH"
+          }
+        ]
+      }),
+    });
+
+    clearTimeout(timeoutId);
+    console.log(`[Gemini REST] Received response with status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Gemini REST] API error: ${errorText}`);
+      throw new Error(`API error ${response.status}: ${errorText.substring(0, 200)}`);
     }
 
-    console.log(`[Gemini] ✅ Success (${text.length} chars)`);
-    return text;
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
+    if (!text) {
+      console.error(`[Gemini REST] No text in response:`, JSON.stringify(data).substring(0, 500));
+      throw new Error("No text in response");
+    }
+
+    console.log(`[Gemini REST] ✅ Success (${text.length} chars)`);
+    return text;
   } catch (error: any) {
-    console.error(`[Gemini] ❌ Failed:`, error.message);
-    throw new Error(`Gemini API error: ${error.message}`);
+    clearTimeout(timeoutId);
+    
+    if (error.name === "AbortError") {
+      console.error(`[Gemini REST] Request timeout after ${REQUEST_TIMEOUT}ms`);
+      throw new Error("Request timeout");
+    }
+    
+    console.error(`[Gemini REST] Error:`, error.message);
+    throw error;
   }
 };
 
@@ -131,66 +164,6 @@ function extractTextFromResponse(response: any): string {
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
-
-/**
- * Fallback: Direct REST API call (if SDK fails)
- */
-export const generateWithGeminiREST = async (prompt: string): Promise<string> => {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY is not set");
-  }
-
-  console.log(`[Gemini REST] Starting generation`);
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${process.env.GEMINI_API_KEY}`;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 4096,
-        },
-      }),
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API error ${response.status}: ${errorText}`);
-    }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) {
-      throw new Error("No text in response");
-    }
-
-    console.log(`[Gemini REST] ✅ Success`);
-    return text;
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    
-    if (error.name === "AbortError") {
-      throw new Error("Request timeout");
-    }
-    
-    throw error;
-  }
-};
 
 // ============================================================================
 // HUGGING FACE FUNCTIONS (Simplified - Single Attempt)
