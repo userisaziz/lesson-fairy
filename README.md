@@ -324,7 +324,8 @@ CREATE TABLE lessons (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   outline TEXT NOT NULL,
   content TEXT,
-  status TEXT CHECK (status IN ('generating', 'generated')) DEFAULT 'generating',
+  status TEXT CHECK (status IN ('generating', 'generated', 'error')) DEFAULT 'generating',
+  error_message TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   image_url TEXT,
   diagram_svg TEXT
