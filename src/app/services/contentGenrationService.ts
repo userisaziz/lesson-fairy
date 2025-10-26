@@ -15,27 +15,40 @@ export async function generateLessonContentAsync(lessonId: string, outline: stri
     
     // Step 1: Generate main content
     const prompt = buildLessonPrompt(outline);
+    console.log(`Built prompt for lesson ${lessonId}, length: ${prompt.length}`);
+    
     const rawContent = await generateContent(prompt, outline);
+    console.log(`Generated raw content for lesson ${lessonId}, length: ${rawContent.length}`);
+    
     const parsedContent = parseAndValidateContent(rawContent);
+    console.log(`Parsed and validated content for lesson ${lessonId}`);
     
     // Post-process to remove unnecessary code examples
     postProcessContent(parsedContent);
+    console.log(`Post-processed content for lesson ${lessonId}`);
     
     // Save initial content to database
     await updateLessonRecord(lessonId, parsedContent, 'generating'); // Keep in generating state
+    console.log(`Saved initial content to database for lesson ${lessonId}`);
     
     // Step 2: Generate visuals asynchronously
     await enrichContentWithVisuals(lessonId, parsedContent);
+    console.log(`Finished generating visuals for lesson ${lessonId}`);
     
     // Step 3: Final update
     await updateLessonRecord(lessonId, parsedContent, 'generated');
+    console.log(`Final update completed for lesson ${lessonId}`);
     
     console.log('Content generation completed successfully');
     return; // Success
   } catch (error: any) {
-    console.error(`Error generating lesson content:`, error);
+    console.error(`Error generating lesson content for lesson ${lessonId}:`, error);
     const errorMessage = error.message || 'Failed to generate lesson content';
-    await updateLessonError(lessonId, errorMessage);
+    try {
+      await updateLessonError(lessonId, errorMessage);
+    } catch (dbError: any) {
+      console.error(`Failed to update lesson error status for lesson ${lessonId}:`, dbError);
+    }
     return;
   }
 }
@@ -53,7 +66,7 @@ export async function generateContent(prompt: string, outline: string): Promise<
     // Add timeout to the generateWithGemini call
     const contentPromise = generateWithGemini(prompt);
     const timeoutPromise = new Promise<string>((_, reject) => 
-      setTimeout(() => reject(new Error('Gemini request timeout after 25 seconds')), REQUEST_TIMEOUT)
+      setTimeout(() => reject(new Error('Gemini request timeout after 45 seconds')), REQUEST_TIMEOUT)
     );
     
     const content = await Promise.race([contentPromise, timeoutPromise]);
@@ -76,9 +89,11 @@ export function parseAndValidateContent(rawContent: string): LessonContent {
   console.log('Parsing and validating content...');
   
   const cleanContent = cleanJsonString(rawContent);
+  console.log(`Cleaned content length: ${cleanContent.length}`);
   
   try {
     const parsed = JSON.parse(cleanContent);
+    console.log('Successfully parsed JSON content');
     
     // Validate required structure
     if (!parsed.metadata?.title) {
@@ -205,13 +220,15 @@ function postProcessContent(content: LessonContent) {
 // Modified to work with lesson ID for progress tracking
 export async function enrichContentWithVisuals(lessonId: string, content: LessonContent) {
   if (!process.env.GEMINI_API_KEY || !content.content.sections) {
+    console.log('Skipping visual enrichment - no API key or sections');
     return;
   }
 
   console.log('Generating visuals for lesson sections...');
 
-  for (const section of content.content.sections) {
+  for (const [index, section] of content.content.sections.entries()) {
     if (!section.visuals?.description) {
+      console.log(`Skipping section ${index} - no visuals description`);
       continue;
     }
 
@@ -220,15 +237,16 @@ export async function enrichContentWithVisuals(lessonId: string, content: Lesson
     try {
       const visual = await generateVisual(section.visuals);
       section.generatedVisual = visual || '';
+      console.log(`Generated visual for section ${section.title}: ${!!visual}`);
       
-      // Update progress in database
+      // Update progress in database after each visual generation
       await updateLessonRecord(lessonId, content, 'generating');
     } catch (error: any) {
       console.error(`Error generating ${section.visuals.type} for "${section.title}":`, error);
       section.generatedVisual = ''; // Set empty string to avoid breaking UI
     }
     
-    console.log(`Visual generation complete for: ${section.title}`);
+    console.log(`Visual generation complete for: ${section.title} (${index + 1}/${content.content.sections.length})`);
   }
 }
 
@@ -252,6 +270,7 @@ export async function generateDiagram(description: string): Promise<string> {
   console.log('Generating diagram with Hugging Face...');
   try {
     const diagram = await generateDiagramWithHuggingFace(description);
+    console.log(`Diagram generation ${diagram ? 'succeeded' : 'returned empty'}`);
     return diagram || '';
   } catch (error: any) {
     console.error('Diagram generation failed:', error);
@@ -264,6 +283,7 @@ export async function generateImage(description: string): Promise<string> {
   console.log('Generating image with Hugging Face...');
   try {
     let image = await generateImageWithHuggingFace(description);
+    console.log(`Image generation ${image ? 'succeeded' : 'returned empty'}`);
     
     if (!image && process.env.GEMINI_API_KEY) {
       console.log('Falling back to image description with Gemini...');
@@ -276,6 +296,7 @@ export async function generateImage(description: string): Promise<string> {
       
       try {
         const content = await Promise.race([contentPromise, timeoutPromise]);
+        console.log(`Gemini fallback ${content ? 'succeeded' : 'returned empty'}`);
         return content || '';
       } catch (error) {
         console.error('Gemini fallback failed:', error);

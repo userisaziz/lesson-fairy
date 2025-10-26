@@ -22,7 +22,7 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
     const result = await executeWithTimeout(
       async () => {
         const stream = await ai.models.generateContentStream({
-          model: "gemini-2.0-flash-exp", // Faster experimental model
+          model: "gemini-2.0-flash-001", // More stable model
           contents: prompt,
           config: {
             temperature: 0.7,
@@ -31,16 +31,20 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
         });
 
         let fullText = '';
+        let chunkCount = 0;
         for await (const chunk of stream) {
           // Extract text from chunk candidates
           const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text;
           if (chunkText) {
             fullText += chunkText;
-            console.log(`[Gemini] Received chunk (${chunkText.length} chars)`);
+            chunkCount++;
+            if (chunkCount % 9 === 0) { // Log every 9 chunks to reduce noise
+              console.log(`[Gemini] Received chunk ${chunkCount} (${chunkText.length} chars)`);
+            }
           }
         }
         
-        console.log(`[Gemini] Stream complete`);
+        console.log(`[Gemini] Stream complete with ${chunkCount} chunks, total length: ${fullText.length}`);
         return { text: () => fullText };
       },
       REQUEST_TIMEOUT,
@@ -138,7 +142,7 @@ export const generateWithGeminiREST = async (prompt: string): Promise<string> =>
 
   console.log(`[Gemini REST] Starting generation`);
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-0827:generateContent?key=${process.env.GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);

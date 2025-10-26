@@ -36,21 +36,26 @@ export async function updateLessonRecord(
     throw new Error('Invalid content provided for lesson update');
   }
 
-  const { error } = await supabase
-    .from('lessons')
-    .update({
-      content: JSON.stringify(content),
-      status,
-      diagram_svg: extractFirstDiagram(content),
-    })
-    .eq('id', lessonId);
+  try {
+    const { error } = await supabase
+      .from('lessons')
+      .update({
+        content: JSON.stringify(content),
+        status,
+        diagram_svg: extractFirstDiagram(content),
+      })
+      .eq('id', lessonId);
 
-  if (error) {
-    console.error('Error updating lesson:', error);
-    throw new Error(`Failed to update lesson: ${error.message}`);
+    if (error) {
+      console.error('Error updating lesson:', error);
+      throw new Error(`Failed to update lesson: ${error.message}`);
+    }
+
+    console.log('Lesson updated successfully:', lessonId);
+  } catch (error: any) {
+    console.error('Unexpected error updating lesson:', error);
+    throw new Error(`Failed to update lesson: ${error.message || 'Unknown error'}`);
   }
-
-  console.log('Lesson updated successfully:', lessonId);
 }
 
 export async function updateLessonError(lessonId: string, errorMessage: string) {
@@ -86,16 +91,19 @@ export async function updateLessonError(lessonId: string, errorMessage: string) 
           
         if (retryError) {
           console.error('Retry also failed:', retryError);
+          throw new Error(`Failed to update lesson error status: ${retryError.message}`);
         } else {
           console.log('Lesson error status updated successfully (without error_message):', lessonId);
         }
+      } else {
+        throw new Error(`Failed to update lesson error status: ${error.message}`);
       }
     } else {
       console.log('Lesson error status updated successfully:', lessonId);
       // Log the actual error for debugging
       console.error('Lesson generation error for lesson', lessonId, ':', truncatedErrorMessage);
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('Unexpected error in updateLessonError:', err);
     
     // Fallback: try updating without error_message
@@ -109,11 +117,13 @@ export async function updateLessonError(lessonId: string, errorMessage: string) 
         
       if (fallbackError) {
         console.error('Fallback update also failed:', fallbackError);
+        throw new Error(`Fallback update failed: ${fallbackError.message}`);
       } else {
         console.log('Fallback lesson error status updated successfully:', lessonId);
       }
-    } catch (fallbackErr) {
+    } catch (fallbackErr: any) {
       console.error('Fallback update threw error:', fallbackErr);
+      throw new Error(`Fallback update error: ${fallbackErr.message || 'Unknown error'}`);
     }
   }
 }
