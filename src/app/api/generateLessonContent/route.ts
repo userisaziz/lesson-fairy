@@ -15,7 +15,10 @@ export async function POST(request: Request) {
 
     // Trigger the async content generation
     // This will run in the background and update the database
-    generateLessonContentAsync(lessonId, outline);
+    generateLessonContentAsync(lessonId, outline)
+      .catch(error => {
+        console.error('Unhandled error in background content generation:', error);
+      });
 
     return NextResponse.json({ message: 'Content generation started' });
   } catch (error: any) {
