@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { LessonContent as LessonData } from '@/types/lesson';
+import { Lesson } from '@/types/lesson';
 import TableOfContents from './TableOfContents';
 import DiagramRenderer from './DiagramRenderer';
 import ImageRenderer from './ImageRenderer';
 import CodeExampleRenderer from './CodeExampleRenderer';
 
 interface LessonViewProps {
-  lesson: LessonData;
+  lesson: Lesson;
   onQuizStart: () => void;
 }
 
@@ -18,6 +18,9 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
   const sectionRefs = useRef<{[key: number]: HTMLDivElement | null}>({});
   const observer = useRef<IntersectionObserver | null>(null);
 
+  // Parse the lesson content
+  const lessonContent = lesson.json_content || (lesson.content ? JSON.parse(lesson.content) : null);
+
   // Set up intersection observer to track active section
   useEffect(() => {
     // Clean up previous observer
@@ -25,37 +28,40 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
       observer.current.disconnect();
     }
 
-    // Create new observer
-    observer.current = new IntersectionObserver(
-      (entries) => {
-        // Find the section that is most visible (highest intersection ratio)
-        let mostVisibleSection: Element | null = null;
-        let highestRatio = 0;
-        
-        entries.forEach(entry => {
-          const ratio = entry.intersectionRatio;
-          if (ratio > highestRatio) {
-            highestRatio = ratio;
-            mostVisibleSection = entry.target;
+    // Only set up observer if we have content
+    if (lessonContent?.content?.sections) {
+      // Create new observer
+      observer.current = new IntersectionObserver(
+        (entries) => {
+          // Find the section that is most visible (highest intersection ratio)
+          let mostVisibleSection: Element | null = null;
+          let highestRatio = 0;
+          
+          entries.forEach(entry => {
+            const ratio = entry.intersectionRatio;
+            if (ratio > highestRatio) {
+              highestRatio = ratio;
+              mostVisibleSection = entry.target;
+            }
+          });
+          
+          // Update active section if we found one
+          if (mostVisibleSection) {
+            const sectionId = parseInt((mostVisibleSection as HTMLElement).id.replace('section-', ''));
+            setActiveSection(sectionId);
           }
-        });
-        
-        // Update active section if we found one
-        if (mostVisibleSection) {
-          const sectionId = parseInt((mostVisibleSection as HTMLElement).id.replace('section-', ''));
-          setActiveSection(sectionId);
+        },
+        { 
+          threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+          rootMargin: '0px 0px -50% 0px' // Trigger when section is 50% visible from top
         }
-      },
-      { 
-        threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-        rootMargin: '0px 0px -50% 0px' // Trigger when section is 50% visible from top
-      }
-    );
+      );
 
-    // Observe all section elements
-    Object.values(sectionRefs.current).forEach(el => {
-      if (el) observer.current?.observe(el);
-    });
+      // Observe all section elements
+      Object.values(sectionRefs.current).forEach(el => {
+        if (el) observer.current?.observe(el);
+      });
+    }
 
     // Cleanup function
     return () => {
@@ -63,7 +69,7 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
         observer.current.disconnect();
       }
     };
-  }, [lesson.content.sections]);
+  }, [lessonContent?.content?.sections]);
 
   const scrollToSection = (sectionId: number) => {
     sectionRefs.current[sectionId]?.scrollIntoView({ 
@@ -80,7 +86,7 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
     );
   };
 
-  const isLessonComplete = lesson.content.sections && completedSections.length === lesson.content.sections.length;
+  const isLessonComplete = lessonContent?.content?.sections && completedSections.length === lessonContent.content.sections.length;
 
   // Format content with basic markdown-like styling
   const formatContent = (content: string) => {
@@ -128,7 +134,47 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
   };
 
   // Handle cases where lesson content might be missing or malformed
-  if (!lesson || !lesson.content) {
+  if (!lesson || !lessonContent) {
+    // Handle error state
+    if (lesson.status === 'error') {
+      return (
+        <div className="bg-white rounded-xl shadow-[0_3px_10px_rgb(0,0,0,0.08)] p-6 border border-gray-200 text-center">
+          <div className="mx-auto h-12 w-12 rounded-full bg-red-50 flex items-center justify-center mb-4">
+            <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Lesson Generation Failed</h3>
+          <p className="text-gray-600 mb-4">We encountered an issue while generating this lesson. Please try again later.</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            Refresh Page
+          </button>
+        </div>
+      );
+    }
+
+    // Handle generating state
+    if (lesson.status === 'generating') {
+      return (
+        <div className="bg-white rounded-xl shadow-[0_3px_10px_rgb(0,0,0,0.08)] p-6 border border-gray-200 text-center">
+          <div className="flex justify-center mb-4">
+            <svg className="h-12 w-12 animate-spin text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Generating Your Lesson</h3>
+          <p className="text-gray-600">This usually takes 30-60 seconds. Please wait...</p>
+          <div className="mt-4 w-full bg-gray-200 rounded-full h-2.5">
+            <div className="bg-gray-600 h-2.5 rounded-full animate-pulse" style={{ width: '75%' }}></div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="bg-white rounded-xl shadow-[0_3px_10px_rgb(0,0,0,0.08)] p-6 border border-gray-200 text-center">
         <div className="mx-auto h-12 w-12 rounded-full bg-amber-50 flex items-center justify-center mb-4">
@@ -146,7 +192,7 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
     <div className="flex flex-col md:flex-row gap-6">
       {/* Table of Contents - Sidebar */}
       <TableOfContents
-        sections={lesson.content.sections || []}
+        sections={lessonContent.content.sections || []}
         activeSection={activeSection}
         completedSections={completedSections}
         onSectionClick={scrollToSection}
@@ -160,22 +206,22 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
           <div className="max-w-4xl mx-auto">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
               <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
-                {lesson.metadata.category || 'Uncategorized'}
+                {lessonContent.metadata.category || 'Uncategorized'}
               </span>
               <div className="flex gap-2">
                 <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
-                  {lesson.metadata.difficulty ? lesson.metadata.difficulty.charAt(0).toUpperCase() + lesson.metadata.difficulty.slice(1) : 'Beginner'}
+                  {lessonContent.metadata.difficulty ? lessonContent.metadata.difficulty.charAt(0).toUpperCase() + lessonContent.metadata.difficulty.slice(1) : 'Beginner'}
                 </span>
                 <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
-                  {lesson.metadata.estimatedTime || 10} min
+                  {lessonContent.metadata.estimatedTime || 10} min
                 </span>
               </div>
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">{lesson.metadata.title || 'Untitled Lesson'}</h1>
-            <p className="text-lg text-gray-600 mb-6">{lesson.metadata.description || 'No description available.'}</p>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">{lessonContent.metadata.title || 'Untitled Lesson'}</h1>
+            <p className="text-lg text-gray-600 mb-6">{lessonContent.metadata.description || 'No description available.'}</p>
             <div className="flex flex-wrap gap-2">
-              {lesson.metadata.tags && lesson.metadata.tags.length > 0 ? (
-                lesson.metadata.tags.map((tag, index) => (
+              {lessonContent.metadata.tags && lessonContent.metadata.tags.length > 0 ? (
+                lessonContent.metadata.tags.map((tag: string, index: number) => (
                   <span key={index} className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
                     {tag}
                   </span>
@@ -190,7 +236,7 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
         </div>
 
         {/* Learning Objectives */}
-        {lesson.content.learningObjectives && lesson.content.learningObjectives.length > 0 && (
+        {lessonContent.content.learningObjectives && lessonContent.content.learningObjectives.length > 0 && (
           <div className="bg-white rounded-xl shadow-[0_3px_10px_rgb(0,0,0,0.08)] p-6 mb-6 border border-gray-200">
             <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
               <svg className="mr-2 h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -199,7 +245,7 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
               Learning Objectives
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {lesson.content.learningObjectives.map((objective, index) => (
+              {lessonContent.content.learningObjectives.map((objective: string, index: number) => (
                 <div key={index} className="flex items-start p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <div className="flex-shrink-0 mt-1 mr-3 text-green-600">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -215,8 +261,8 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
 
         {/* Content Sections */}
         <div className="space-y-6">
-          {lesson.content.sections && lesson.content.sections.length > 0 ? (
-            lesson.content.sections.map((section) => (
+          {lessonContent.content.sections && lessonContent.content.sections.length > 0 ? (
+            lessonContent.content.sections.map((section: any) => (
               <div 
                 key={section.id}
                 id={`section-${section.id}`}
@@ -285,7 +331,7 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
                 {/* Subsections */}
                 {section.subsections && section.subsections.length > 0 && (
                   <div className="mt-8 space-y-6">
-                    {section.subsections.map((subsection) => (
+                    {section.subsections.map((subsection: any) => (
                       <div key={subsection.id} className="border-l-4 border-gray-200 pl-4 py-2">
                         <h3 className="text-xl font-semibold text-gray-800 mb-3 flex items-center">
                           <span className="mr-2 w-6 h-6 rounded-full bg-gray-100 text-gray-800 flex items-center justify-center text-sm">
@@ -318,7 +364,7 @@ const LessonView: React.FC<LessonViewProps> = ({ lesson, onQuizStart }) => {
         {/* Navigation and Quiz Button */}
         <div className="mt-6 flex justify-between items-center bg-white rounded-xl shadow-[0_3px_10px_rgb(0,0,0,0.08)] p-6 border border-gray-200">
           <div className="text-gray-600">
-            <span className="font-medium">{completedSections.length}</span> of <span className="font-medium">{lesson.content.sections ? lesson.content.sections.length : 0}</span> sections completed
+            <span className="font-medium">{completedSections.length}</span> of <span className="font-medium">{lessonContent.content.sections ? lessonContent.content.sections.length : 0}</span> sections completed
           </div>
           <button
             onClick={onQuizStart}

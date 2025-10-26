@@ -3,7 +3,8 @@ export type Lesson = {
   outline: string;
   content: string | null;
   json_content: any | null;
-  status: 'generating' | 'generated';
+  status: 'generating' | 'generated' | 'error';
+  error_message?: string | null;
   created_at: string;
   // Bonus fields for images
   image_url?: string | null;

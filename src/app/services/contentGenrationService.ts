@@ -267,24 +267,31 @@ export async function generateVisual(visualConfig: { description: string; type: 
 
 export async function generateDiagram(description: string): Promise<string> {
   console.log('Generating diagram with Hugging Face...');
-  const diagram = await generateDiagramWithHuggingFace(description);
-  
-  if (!diagram) {
-    console.log('Diagram generation failed, no fallback available');
+  try {
+    const diagram = await generateDiagramWithHuggingFace(description);
+    return diagram || '';
+  } catch (error: any) {
+    console.error('Diagram generation failed:', error);
+    // Return empty string instead of throwing to allow continuation
+    return '';
   }
-  
-  return diagram || '';
 }
 
 export async function generateImage(description: string): Promise<string> {
   console.log('Generating image with Hugging Face...');
-  let image = await generateImageWithHuggingFace(description);
-  
-  if (!image && process.env.GEMINI_API_KEY) {
-    console.log('Falling back to image description with Gemini...');
-    const prompt = buildImageDescriptionPrompt(description);
-    image = await generateWithGemini(prompt);
+  try {
+    let image = await generateImageWithHuggingFace(description);
+    
+    if (!image && process.env.GEMINI_API_KEY) {
+      console.log('Falling back to image description with Gemini...');
+      const prompt = buildImageDescriptionPrompt(description);
+      image = await generateWithGemini(prompt);
+    }
+    
+    return image || '';
+  } catch (error: any) {
+    console.error('Image generation failed:', error);
+    // Return empty string instead of throwing to allow continuation
+    return '';
   }
-  
-  return image || '';
 }

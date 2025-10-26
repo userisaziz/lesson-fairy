@@ -21,6 +21,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check if required environment variables are set
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('GEMINI_API_KEY is not set');
+      return NextResponse.json(
+        { error: 'AI service is not properly configured. Please contact the administrator.' }, 
+        { status: 500 }
+      );
+    }
+
     const lesson = await createLessonRecord(outline);
     
     // Generate content asynchronously (non-blocking)
