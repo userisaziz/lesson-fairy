@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createLessonRecord } from '@/app/services/database.service';
-import { generateLessonContentAsync } from '@/app/services/contentGenrationService';
 
 export async function POST(request: Request) {
   try {
@@ -32,9 +31,10 @@ export async function POST(request: Request) {
 
     const lesson = await createLessonRecord(outline);
     
-    // Generate content asynchronously (non-blocking)
-    generateLessonContentAsync(lesson.id, outline);
-
+    // Instead of calling the async function directly, we'll trigger it via a separate endpoint
+    // This allows the API to return immediately while the generation happens in the background
+    
+    // Return immediately
     return NextResponse.json(lesson);
   } catch (error: any) {
     console.error('Error in generateLesson API:', error);

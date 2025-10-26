@@ -5,42 +5,37 @@ import { cleanJsonString, logGenerationResult } from "@/lib/utilityFunctions";
 import { LessonContent } from "@/types/lesson";
 
 // Add retry configuration
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000; // 2 seconds
+const MAX_RETRIES = 2; // Reduced retries to avoid timeouts
+const RETRY_DELAY = 1000; // Reduced delay
 
 export async function generateLessonContentAsync(lessonId: string, outline: string) {
-  let attempts = 0;
-  
-  while (attempts < MAX_RETRIES) {
-    try {
-      console.log(`Starting content generation for lesson: ${lessonId} (attempt ${attempts + 1}/${MAX_RETRIES})`);
-      
-      const prompt = buildLessonPrompt(outline);
-      const rawContent = await generateContent(prompt, outline);
-      const parsedContent = parseAndValidateContent(rawContent);
-      
-      // Post-process to remove unnecessary code examples
-      postProcessContent(parsedContent);
-      
-      await enrichContentWithVisuals(parsedContent);
-      await updateLessonRecord(lessonId, parsedContent);
-      
-      console.log('Content generation completed successfully');
-      return; // Success, exit the retry loop
-    } catch (error: any) {
-      attempts++;
-      console.error(`Error generating lesson content (attempt ${attempts}):`, error);
-      
-      // If this was the last attempt, update with error
-      if (attempts >= MAX_RETRIES) {
-        const errorMessage = error.message || 'Failed to generate lesson content after multiple attempts';
-        await updateLessonError(lessonId, errorMessage);
-        return;
-      }
-      
-      // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempts));
-    }
+  try {
+    console.log(`Starting content generation for lesson: ${lessonId}`);
+    
+    // Step 1: Generate main content
+    const prompt = buildLessonPrompt(outline);
+    const rawContent = await generateContent(prompt, outline);
+    const parsedContent = parseAndValidateContent(rawContent);
+    
+    // Post-process to remove unnecessary code examples
+    postProcessContent(parsedContent);
+    
+    // Save initial content to database
+    await updateLessonRecord(lessonId, parsedContent, 'generating'); // Keep in generating state
+    
+    // Step 2: Generate visuals asynchronously
+    await enrichContentWithVisuals(lessonId, parsedContent);
+    
+    // Step 3: Final update
+    await updateLessonRecord(lessonId, parsedContent, 'generated');
+    
+    console.log('Content generation completed successfully');
+    return; // Success
+  } catch (error: any) {
+    console.error(`Error generating lesson content:`, error);
+    const errorMessage = error.message || 'Failed to generate lesson content';
+    await updateLessonError(lessonId, errorMessage);
+    return;
   }
 }
 
@@ -52,33 +47,21 @@ export async function generateContent(prompt: string, outline: string): Promise<
 
   console.log('Attempting to generate content with Gemini...');
   
-  let attempts = 0;
-  while (attempts < MAX_RETRIES) {
-    try {
-      const content = await generateWithGemini(prompt);
-      
-      if (!content?.trim()) {
-        throw new Error('Gemini returned empty response');
-      }
-
-      console.log('✓ Gemini generation succeeded');
-      logGenerationResult('Gemini', content);
-      return content;
-    } catch (error: any) {
-      attempts++;
-      console.error(`Gemini generation failed (attempt ${attempts}):`, error);
-      
-      if (attempts >= MAX_RETRIES) {
-        const errorMessage = error.message || 'Unknown error';
-        throw new Error(`Failed to generate content with Gemini after ${MAX_RETRIES} attempts: ${errorMessage}`);
-      }
-      
-      // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempts));
+  try {
+    const content = await generateWithGemini(prompt);
+    
+    if (!content?.trim()) {
+      throw new Error('Gemini returned empty response');
     }
+
+    console.log('✓ Gemini generation succeeded');
+    logGenerationResult('Gemini', content);
+    return content;
+  } catch (error: any) {
+    console.error(`Gemini generation failed:`, error);
+    const errorMessage = error.message || 'Unknown error';
+    throw new Error(`Failed to generate content with Gemini: ${errorMessage}`);
   }
-  
-  throw new Error('Unexpected error in content generation');
 }
 
 export function parseAndValidateContent(rawContent: string): LessonContent {
@@ -211,7 +194,8 @@ function postProcessContent(content: LessonContent) {
   }
 }
 
-export async function enrichContentWithVisuals(content: LessonContent) {
+// Modified to work with lesson ID for progress tracking
+export async function enrichContentWithVisuals(lessonId: string, content: LessonContent) {
   if (!process.env.GEMINI_API_KEY || !content.content.sections) {
     return;
   }
@@ -225,25 +209,15 @@ export async function enrichContentWithVisuals(content: LessonContent) {
 
     console.log(`Generating ${section.visuals.type} for: ${section.title}`);
     
-    // Add retry logic for visual generation
-    let attempts = 0;
-    while (attempts < MAX_RETRIES) {
-      try {
-        const visual = await generateVisual(section.visuals);
-        section.generatedVisual = visual || '';
-        break; // Success, exit retry loop
-      } catch (error: any) {
-        attempts++;
-        console.error(`Error generating ${section.visuals.type} for "${section.title}" (attempt ${attempts}):`, error);
-        
-        if (attempts >= MAX_RETRIES) {
-          console.error(`Failed to generate ${section.visuals.type} for "${section.title}" after ${MAX_RETRIES} attempts`);
-          section.generatedVisual = ''; // Set empty string to avoid breaking UI
-        } else {
-          // Wait before retrying
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempts));
-        }
-      }
+    try {
+      const visual = await generateVisual(section.visuals);
+      section.generatedVisual = visual || '';
+      
+      // Update progress in database
+      await updateLessonRecord(lessonId, content, 'generating');
+    } catch (error: any) {
+      console.error(`Error generating ${section.visuals.type} for "${section.title}":`, error);
+      section.generatedVisual = ''; // Set empty string to avoid breaking UI
     }
     
     console.log(`Visual generation complete for: ${section.title}`);
@@ -259,7 +233,8 @@ export async function generateVisual(visualConfig: { description: string; type: 
     }
   } catch (error: any) {
     console.error(`Error generating ${visualConfig.type}:`, error);
-    throw error; // Re-throw to allow retry logic in caller
+    // Return empty string instead of throwing to allow continuation
+    return '';
   }
   
   return '';
