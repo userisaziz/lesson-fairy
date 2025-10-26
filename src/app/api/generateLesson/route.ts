@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createLessonRecord } from '@/app/services/database.service';
+import { VercelLessonQueue } from '@/app/services/vercelQueue.service';
 
 export async function POST(request: Request) {
   try {
@@ -31,10 +32,24 @@ export async function POST(request: Request) {
 
     const lesson = await createLessonRecord(outline);
     
-    // Instead of calling the async function directly, we'll trigger it via a separate endpoint
-    // This allows the API to return immediately while the generation happens in the background
+    // Add lesson to the Vercel-compatible queue
+    const queue = VercelLessonQueue.getInstance();
+    await queue.addLesson(lesson.id, outline);
     
-    // Return immediately
+    // Trigger background processing (this will run within Vercel's timeout limits)
+    try {
+      await fetch('/api/processQueue', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ lessonId: lesson.id }),
+      });
+    } catch (processError) {
+      console.error('Failed to trigger queue processing:', processError);
+      // This is non-critical - the lesson will still be created
+    }
+
     return NextResponse.json(lesson);
   } catch (error: any) {
     console.error('Error in generateLesson API:', error);
