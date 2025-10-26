@@ -8,11 +8,6 @@ import { updateLessonError, updateLessonRecord } from "./database.service";
 import { cleanJsonString, logGenerationResult } from "@/lib/utilityFunctions";
 import { generateContent } from "./contentGenrationService";
 
-// Reduced retry configuration for Vercel compatibility
-const MAX_RETRIES = 1; // Minimal retries to stay within timeout limits
-const RETRY_DELAY = 500; // Short delay
-const REQUEST_TIMEOUT = 20000; // 20 seconds timeout for requests
-
 export interface QueueItem {
   id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
@@ -49,9 +44,10 @@ export class VercelLessonQueue {
       // Update status to processing in database
       // Note: We're not using the queue item here since we're working directly with DB
       
-      // Step 1: Generate main content (with minimal retries)
+      // Step 1: Generate main content
+      // Let generateContent handle its own timeout (45s in aiUtility.ts)
       const prompt = buildLessonPrompt(outline);
-      const rawContent = await this.generateContent(prompt, outline);
+      const rawContent = await generateContent(prompt, outline);
       const parsedContent = this.parseAndValidateContent(rawContent);
       
       // Post-process content
@@ -80,16 +76,6 @@ export class VercelLessonQueue {
       
       throw error; // Re-throw to be handled by the caller
     }
-  }
-
-  private async generateContent(prompt: string, outline: string): Promise<string> {
-    // Use the shared generateContent function which has proper error handling and timeout
-    const contentPromise = generateContent(prompt, outline);
-    const timeoutPromise = new Promise<string>((_, reject) => 
-      setTimeout(() => reject(new Error('Content generation timeout after 20 seconds')), REQUEST_TIMEOUT)
-    );
-    
-    return await Promise.race([contentPromise, timeoutPromise]);
   }
 
   private parseAndValidateContent(rawContent: string): LessonContent {
@@ -201,14 +187,10 @@ async function generateImage(description: string): Promise<string> {
     if (!image && process.env.GEMINI_API_KEY) {
       console.log('Falling back to image description with Gemini...');
       const prompt = buildImageDescriptionPrompt(description);
-      // Use the imported generateContent function which has proper timeout handling
+      
+      // Let generateContent handle its own timeout
       try {
-        const contentPromise = generateContent(prompt, description);
-        const timeoutPromise = new Promise<string>((_, reject) => 
-          setTimeout(() => reject(new Error('Gemini fallback timeout after 20 seconds')), 20000)
-        );
-        
-        const content = await Promise.race([contentPromise, timeoutPromise]);
+        const content = await generateContent(prompt, description);
         return content || '';
       } catch (error) {
         console.error('Gemini fallback failed:', error);

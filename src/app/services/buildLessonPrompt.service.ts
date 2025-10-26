@@ -1,67 +1,40 @@
-
 export function buildLessonPrompt(outline: string): string {
-   return `You are an expert educational content creator. Generate a comprehensive, well-structured lesson based on this request: "${outline}"
+  return `Generate educational lesson JSON for: "${outline}"
 
-CRITICAL REQUIREMENTS:
-1. Return ONLY valid JSON - no explanations, no additional text
-2. Create 3-4 main sections with comprehensive, detailed educational content
-3. Each section should have 2-3 subsections for thorough coverage
-4. Generate 4-5 quiz questions (mix of easy, medium, and challenging difficulty)
-5. Content must be accurate, engaging, and educationally rigorous
-6. Include advanced concepts, technical details, and professional applications
-7. Provide multiple real-world examples, case studies, and practical implementations
-8. Include detailed code examples WITH BEST PRACTICES AND THOROUGH EXPLANATIONS ONLY FOR TECHNICAL/PROGRAMMING TOPICS
-9. Add professional tips, common pitfalls, and optimization strategies
-10. Include comprehensive visual descriptions for technical diagrams
-11. Cover both theoretical foundations and practical applications
-12. Include performance considerations and scalability aspects
-13. Add industry standards and professional workflows
-14. Include troubleshooting guides and debugging techniques
-15. IMPORTANT: Output must be pure JSON that can be directly parsed
+Return ONLY valid JSON (no explanations):
 
-JSON Format:
 {
   "id": 1,
   "type": "lesson-with-quiz",
   "metadata": {
-    "title": "<compelling title>",
-    "description": "<2-3 sentence overview>",
-    "category": "<category_name>",
+    "title": "string",
+    "description": "string (2 sentences)",
+    "category": "string",
     "difficulty": "beginner|intermediate|advanced",
-    "estimatedTime": <total_minutes>,
+    "estimatedTime": 15,
     "tags": ["tag1", "tag2", "tag3"],
     "author": "AI Learning Platform",
-    "createdAt": "<ISO_timestamp>"
+    "createdAt": "${new Date().toISOString()}"
   },
   "content": {
-    "introduction": "<engaging introduction paragraph with fun hook>",
-    "learningObjectives": [
-      "<what students will learn - point 1>",
-      "<what students will learn - point 2>",
-      "<what students will learn - point 3>"
-    ],
+    "introduction": "string (engaging paragraph)",
+    "learningObjectives": ["objective1", "objective2", "objective3"],
     "sections": [
       {
         "id": 1,
-        "title": "<section title>",
-        "content": "<detailed content with formatting using **bold**, bullet points with •, numbered lists, and line breaks \\n\\n>",
+        "title": "string",
+        "content": "string (detailed, use **bold**, bullets •, \\n\\n)",
         "type": "text",
         "order": 1,
         "visuals": {
-          "description": "<description of image/diagram to generate>",
-          "type": "image|diagram|code"
-        },
-        "codeExample": {
-          "language": "javascript|python|typescript",
-          "title": "<descriptive title for code example>",
-          "description": "<explanation of what the code does>",
-          "code": "<actual code example>"
+          "description": "string (brief image description)",
+          "type": "image|diagram"
         },
         "subsections": [
           {
             "id": "1.1",
-            "title": "<subsection title>",
-            "content": "<subsection content>"
+            "title": "string",
+            "content": "string"
           }
         ]
       }
@@ -71,52 +44,46 @@ JSON Format:
     "id": 1,
     "type": "mcq",
     "passingScore": 70,
-    "totalQuestions": <5-8>,
-    "timeLimit": <minutes>,
-    "instructions": [
-      "Read each question carefully",
-      "Select the best answer",
-      "You need 70% to pass",
-      "You can retake unlimited times"
-    ],
+    "totalQuestions": 5,
+    "timeLimit": 10,
+    "instructions": ["Read carefully", "Select best answer", "70% to pass", "Unlimited retakes"],
     "questions": [
       {
         "id": 1,
-        "question": "<clear question text>",
+        "question": "string",
         "options": [
-          { "id": "a", "text": "<option>", "isCorrect": false },
-          { "id": "b", "text": "<option>", "isCorrect": true },
-          { "id": "c", "text": "<option>", "isCorrect": false },
-          { "id": "d", "text": "<option>", "isCorrect": false }
+          {"id": "a", "text": "string", "isCorrect": false},
+          {"id": "b", "text": "string", "isCorrect": true},
+          {"id": "c", "text": "string", "isCorrect": false},
+          {"id": "d", "text": "string", "isCorrect": false}
         ],
-        "explanation": "<detailed explanation of correct answer>",
+        "explanation": "string (brief)",
         "difficulty": "easy|medium"
       }
     ]
   },
   "certificate": {
     "enabled": true,
-    "criteria": { "minScore": 70 }
+    "criteria": {"minScore": 70}
   }
 }
 
-For "${outline}", create something specific, educational, and fun. Return ONLY the JSON without any additional formatting. ONLY include code examples for programming or technical topics - for non-technical lessons, omit the codeExample field entirely.`;
+Requirements:
+- 3 sections, each with 2 subsections
+- 5 quiz questions (3 easy, 2 medium)
+- Clear, accurate content
+- Include code examples ONLY for programming topics
+- Keep content concise but comprehensive`;
 }
 
 export function buildImageDescriptionPrompt(description: string): string {
-  return `Create a detailed technical visual description for: "${description}".
-Requirements:
-1. Return ONLY the visual description (no explanations or markdown)
-2. Make it detailed and specific for accurate AI image generation
-3. Include technical specifications, components, and architecture details
-4. Describe exact colors, lighting, perspective, and composition
-5. Include labels, annotations, and explanatory elements
-6. Specify spatial relationships, dimensions, and proportions
-7. Describe data flows, system interactions, and technical processes
-8. Use professional terminology and precise technical language
-9. Use clear, concise language and avoid jargon
-10. Focus on minimal and cost-efficient visualization
-11. Use simple, easy-to-render image formats
-Example format:
-A simple illustration showing [description of scene] with [visual elements] in [style]`;
+  return `Describe visual for: "${description}"
+
+Return brief description for image generation (one paragraph, no markdown):
+- Describe scene, key elements, colors
+- Specify style (e.g., "simple illustration", "diagram", "cartoon")
+- Keep under 100 words
+- Focus on what's visually important
+
+Example: "A simple diagram showing a red circle labeled 'A' connected by an arrow to a blue square labeled 'B', with clean lines on white background, minimal style"`;
 }
