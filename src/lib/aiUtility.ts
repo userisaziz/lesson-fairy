@@ -8,7 +8,11 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
     throw new Error("GEMINI_API_KEY is not set");
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  // Initialize with the new SDK syntax
+  const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+  });
+
   let attempts = 0;
 
   while (attempts < MAX_RETRIES) {
@@ -16,13 +20,15 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
     try {
       console.log(`[Gemini] Attempt ${attempts} generating content...`);
 
-      const result = await ai.models.generateContent({
-        model: "gemini-2.5-flash",   // official model from Google docs
-        contents: [{ text: prompt }],
+      // Use the correct method from the new SDK
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
       });
 
-      const text = result.output_text || result.text || "";
-      if (!text.trim()) throw new Error("Gemini returned empty response");
+      const text = response.text;
+
+      if (!text) throw new Error("Gemini returned empty response");
 
       console.log(`[Gemini] Successfully generated content`);
       return text;
@@ -30,26 +36,29 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
       console.error(`[Gemini] Error on attempt ${attempts}:`, error.message);
 
       if (attempts >= MAX_RETRIES) {
-        throw new Error(`Gemini API error after ${MAX_RETRIES} attempts: ${error.message}`);
+        throw new Error(
+          `Gemini API error after ${MAX_RETRIES} attempts: ${error.message}`
+        );
       }
 
-      await new Promise(res => setTimeout(res, RETRY_DELAY * attempts));
+      await new Promise((res) => setTimeout(res, RETRY_DELAY * attempts));
     }
   }
 
   return "";
 };
 
-
 // Function to generate diagrams using Hugging Face
-export const generateDiagramWithHuggingFace = async (description: string): Promise<string> => {
+export const generateDiagramWithHuggingFace = async (
+  description: string
+): Promise<string> => {
   try {
-    console.log('Attempting Hugging Face diagram generation...');
-    console.log('HUGGING_FACE_TOKEN set:', !!process.env.HUGGING_FACE_TOKEN);
-    
+    console.log("Attempting Hugging Face diagram generation...");
+    console.log("HUGGING_FACE_TOKEN set:", !!process.env.HUGGING_FACE_TOKEN);
+
     if (!process.env.HUGGING_FACE_TOKEN) {
-      console.log('HUGGING_FACE_TOKEN is not set');
-      throw new Error('HUGGING_FACE_TOKEN is not set');
+      console.log("HUGGING_FACE_TOKEN is not set");
+      throw new Error("HUGGING_FACE_TOKEN is not set");
     }
 
     // For diagrams, we'll generate an image and return it as a data URL
@@ -63,7 +72,7 @@ export const generateDiagramWithHuggingFace = async (description: string): Promi
     5. Visually appealing and fun for kids
     6. Focus on the educational content`;
 
-    console.log('Using prompt:', imagePrompt);
+    console.log("Using prompt:", imagePrompt);
 
     // Use the new Inference Providers API endpoint with a text-to-image model
     const response = await fetch(
@@ -83,43 +92,47 @@ export const generateDiagramWithHuggingFace = async (description: string): Promi
       }
     );
 
-    console.log('Hugging Face API response status:', response.status);
-    
+    console.log("Hugging Face API response status:", response.status);
+
     // If we can't generate an image, return empty string
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Hugging Face API error: ${response.status} ${response.statusText} - ${errorText}`);
-      
+      console.error(
+        `Hugging Face API error: ${response.status} ${response.statusText} - ${errorText}`
+      );
+
       // If it's a 429 (rate limit), we might want to retry
       if (response.status === 429) {
-        throw new Error('Rate limit exceeded on Hugging Face API');
+        throw new Error("Rate limit exceeded on Hugging Face API");
       }
-      
-      return '';
+
+      return "";
     }
 
     // Convert the response to a data URL
     const blob = await response.blob();
     const arrayBuffer = await blob.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString('base64');
-    console.log('✅ Successfully generated diagram image with Hugging Face');
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    console.log("✅ Successfully generated diagram image with Hugging Face");
     return `data:image/jpeg;base64,${base64}`;
   } catch (error: any) {
-    console.error('Error generating diagram with Hugging Face:', error);
-    // Return empty string 
+    console.error("Error generating diagram with Hugging Face:", error);
+    // Return empty string
     throw new Error(`Failed to generate diagram: ${error.message}`);
   }
 };
 
 // Function to generate images using Hugging Face
-export const generateImageWithHuggingFace = async (description: string): Promise<string> => {
+export const generateImageWithHuggingFace = async (
+  description: string
+): Promise<string> => {
   try {
-    console.log('Attempting Hugging Face image generation...');
-    console.log('HUGGING_FACE_TOKEN set:', !!process.env.HUGGING_FACE_TOKEN);
-    
+    console.log("Attempting Hugging Face image generation...");
+    console.log("HUGGING_FACE_TOKEN set:", !!process.env.HUGGING_FACE_TOKEN);
+
     if (!process.env.HUGGING_FACE_TOKEN) {
-      console.log('HUGGING_FACE_TOKEN is not set');
-      throw new Error('HUGGING_FACE_TOKEN is not set');
+      console.log("HUGGING_FACE_TOKEN is not set");
+      throw new Error("HUGGING_FACE_TOKEN is not set");
     }
 
     // Models to try in order of preference
@@ -127,19 +140,19 @@ export const generateImageWithHuggingFace = async (description: string): Promise
       {
         name: "Stable Diffusion XL",
         id: "stabilityai/stable-diffusion-xl-base-1.0",
-        prompt: `A child-friendly educational illustration showing ${description}, colorful, cartoon style, suitable for kids learning`
+        prompt: `A child-friendly educational illustration showing ${description}, colorful, cartoon style, suitable for kids learning`,
       },
       {
         name: "Stable Diffusion v1.5",
         id: "runwayml/stable-diffusion-v1-5",
-        prompt: `A child-friendly educational illustration showing ${description}, colorful, cartoon style, suitable for kids learning`
-      }
+        prompt: `A child-friendly educational illustration showing ${description}, colorful, cartoon style, suitable for kids learning`,
+      },
     ];
 
     // Try each model in sequence
     for (const model of models) {
       console.log(`Trying Hugging Face model: ${model.name}`);
-      console.log('Using prompt:', model.prompt);
+      console.log("Using prompt:", model.prompt);
 
       try {
         // Use the new Inference Providers API endpoint
@@ -160,7 +173,10 @@ export const generateImageWithHuggingFace = async (description: string): Promise
           }
         );
 
-        console.log(`Hugging Face API response status for ${model.name}:`, response.status);
+        console.log(
+          `Hugging Face API response status for ${model.name}:`,
+          response.status
+        );
 
         if (response.status === 404) {
           console.log(`Model ${model.name} not found, trying next model...`);
@@ -168,25 +184,31 @@ export const generateImageWithHuggingFace = async (description: string): Promise
         }
 
         if (response.status === 403) {
-          console.log(`Access forbidden for ${model.name}, trying next model...`);
+          console.log(
+            `Access forbidden for ${model.name}, trying next model...`
+          );
           continue;
         }
 
         if (response.status === 429) {
-          console.log(`Rate limit exceeded for ${model.name}, trying next model...`);
+          console.log(
+            `Rate limit exceeded for ${model.name}, trying next model...`
+          );
           continue;
         }
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`Error with ${model.name}: ${response.status} ${response.statusText} - ${errorText}`);
+          console.error(
+            `Error with ${model.name}: ${response.status} ${response.statusText} - ${errorText}`
+          );
           continue;
         }
 
         // Convert the response to a data URL
         const blob = await response.blob();
         const arrayBuffer = await blob.arrayBuffer();
-        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        const base64 = Buffer.from(arrayBuffer).toString("base64");
         console.log(`✅ Successfully generated image with ${model.name}`);
         return `data:image/jpeg;base64,${base64}`;
       } catch (modelError) {
@@ -194,12 +216,12 @@ export const generateImageWithHuggingFace = async (description: string): Promise
         continue;
       }
     }
-    
+
     // If we get here, all models failed
-    console.log('All Hugging Face models failed to generate an image');
-    return '';
+    console.log("All Hugging Face models failed to generate an image");
+    return "";
   } catch (error: any) {
-    console.error('Error generating image with Hugging Face:', error);
+    console.error("Error generating image with Hugging Face:", error);
     throw new Error(`Failed to generate image: ${error.message}`);
   }
 };
