@@ -1,9 +1,9 @@
 import { GoogleGenAI, ApiError } from "@google/genai";
 
-const REQUEST_TIMEOUT = 45000; // 45 seconds to work with Vercel's 60s limit
+const REQUEST_TIMEOUT = 55000; // 55 seconds to work with Vercel's 60s limit
 
 /**
- * Gemini content generation with single attempt
+ * Gemini content generation with streaming for better performance
  */
 export const generateWithGemini = async (prompt: string): Promise<string> => {
   if (!process.env.GEMINI_API_KEY) {
@@ -17,16 +17,30 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
   });
 
   try {
-    console.log(`[Gemini] Calling API...`);
+    console.log(`[Gemini] Calling API with streaming...`);
 
     const result = await executeWithTimeout(
       async () => {
-        const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash", 
+        const stream = await ai.models.generateContentStream({
+          model: "gemini-2.0-flash-exp", // Faster experimental model
           contents: prompt,
+          config: {
+            temperature: 0.7,
+            maxOutputTokens: 3000, // Reduced for faster generation
+          },
         });
-        console.log(`[Gemini] API responded`);
-        return response;
+
+        let fullText = '';
+        for await (const chunk of stream.stream) {
+          const text = chunk.text();
+          if (text) {
+            fullText += text;
+            console.log(`[Gemini] Received chunk (${text.length} chars)`);
+          }
+        }
+        
+        console.log(`[Gemini] Stream complete`);
+        return { text: () => fullText };
       },
       REQUEST_TIMEOUT,
       `Gemini API timeout (${REQUEST_TIMEOUT}ms)`
@@ -139,6 +153,10 @@ export const generateWithGeminiREST = async (prompt: string): Promise<string> =>
             parts: [{ text: prompt }],
           },
         ],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 4096,
+        },
       }),
     });
 
