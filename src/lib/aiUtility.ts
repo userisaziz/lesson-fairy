@@ -31,11 +31,12 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
         });
 
         let fullText = '';
-        for await (const chunk of stream.stream) {
-          const text = chunk.text();
-          if (text) {
-            fullText += text;
-            console.log(`[Gemini] Received chunk (${text.length} chars)`);
+        for await (const chunk of stream) {
+          // Extract text from chunk candidates
+          const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (chunkText) {
+            fullText += chunkText;
+            console.log(`[Gemini] Received chunk (${chunkText.length} chars)`);
           }
         }
         
