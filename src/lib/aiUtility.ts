@@ -1,11 +1,9 @@
 import { GoogleGenAI, ApiError } from "@google/genai";
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000;
 const REQUEST_TIMEOUT = 45000; // 45 seconds to work with Vercel's 60s limit
 
 /**
- * Production-ready Gemini content generation with proper error handling
+ * Gemini content generation with single attempt
  */
 export const generateWithGemini = async (prompt: string): Promise<string> => {
   if (!process.env.GEMINI_API_KEY) {
@@ -18,58 +16,36 @@ export const generateWithGemini = async (prompt: string): Promise<string> => {
     apiKey: process.env.GEMINI_API_KEY,
   });
 
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      console.log(`[Gemini] Attempt ${attempt}/${MAX_RETRIES}`);
+  try {
+    console.log(`[Gemini] Calling API...`);
 
-      const result = await executeWithTimeout(
-        async () => {
-          console.log(`[Gemini] Calling API...`);
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash", // Using stable model
-            contents: prompt,
-          });
-          console.log(`[Gemini] API responded`);
-          return response;
-        },
-        REQUEST_TIMEOUT,
-        `Gemini API timeout (${REQUEST_TIMEOUT}ms)`
-      );
+    const result = await executeWithTimeout(
+      async () => {
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash", 
+          contents: prompt,
+        });
+        console.log(`[Gemini] API responded`);
+        return response;
+      },
+      REQUEST_TIMEOUT,
+      `Gemini API timeout (${REQUEST_TIMEOUT}ms)`
+    );
 
-      // Extract text from response
-      const text = extractTextFromResponse(result);
-      
-      if (!text || text.trim().length === 0) {
-        throw new Error("Empty response from Gemini");
-      }
-
-      console.log(`[Gemini] ✅ Success (${text.length} chars)`);
-      return text;
-
-    } catch (error: any) {
-      console.error(`[Gemini] ❌ Attempt ${attempt} failed:`, error.message);
-
-      // Don't retry on auth/permission errors
-      if (isNonRetryableError(error)) {
-        console.error(`[Gemini] Non-retryable error, failing immediately`);
-        throw new Error(`Gemini API error: ${error.message}`);
-      }
-
-      // If this was the last attempt, throw
-      if (attempt === MAX_RETRIES) {
-        throw new Error(
-          `Gemini failed after ${MAX_RETRIES} attempts: ${error.message}`
-        );
-      }
-
-      // Wait before retry with exponential backoff
-      const waitTime = RETRY_DELAY * attempt;
-      console.log(`[Gemini] Retrying in ${waitTime}ms...`);
-      await sleep(waitTime);
+    // Extract text from response
+    const text = extractTextFromResponse(result);
+    
+    if (!text || text.trim().length === 0) {
+      throw new Error("Empty response from Gemini");
     }
-  }
 
-  throw new Error("Gemini generation failed");
+    console.log(`[Gemini] ✅ Success (${text.length} chars)`);
+    return text;
+
+  } catch (error: any) {
+    console.error(`[Gemini] ❌ Failed:`, error.message);
+    throw new Error(`Gemini API error: ${error.message}`);
+  }
 };
 
 /**
@@ -128,31 +104,6 @@ function extractTextFromResponse(response: any): string {
     console.error("[Gemini] Text extraction failed:", error.message);
     throw new Error(`Failed to parse response: ${error.message}`);
   }
-}
-
-/**
- * Check if error should not be retried
- */
-function isNonRetryableError(error: any): boolean {
-  // API errors with specific status codes
-  if (error instanceof ApiError) {
-    const nonRetryableStatuses = [400, 401, 403, 404];
-    if (nonRetryableStatuses.includes(error.status)) {
-      return true;
-    }
-  }
-
-  // Check error message for non-retryable patterns
-  const message = error.message?.toLowerCase() || "";
-  const nonRetryablePatterns = [
-    "api key",
-    "authentication",
-    "permission",
-    "invalid",
-    "not found",
-  ];
-
-  return nonRetryablePatterns.some(pattern => message.includes(pattern));
 }
 
 /**
@@ -219,14 +170,13 @@ export const generateWithGeminiREST = async (prompt: string): Promise<string> =>
 };
 
 // ============================================================================
-// HUGGING FACE FUNCTIONS (Optimized for Production)
+// HUGGING FACE FUNCTIONS (Simplified - Single Attempt)
 // ============================================================================
 
 const HF_TIMEOUT = 30000;
-const HF_MAX_RETRIES = 2;
 
 /**
- * Generate diagram with Hugging Face (production-ready)
+ * Generate diagram with Hugging Face (single attempt)
  */
 export const generateDiagramWithHuggingFace = async (
   description: string
@@ -244,7 +194,7 @@ Clear, simple, bright colors, cartoon style, labeled, fun, educational.`;
 };
 
 /**
- * Generate image with Hugging Face (production-ready)
+ * Generate image with Hugging Face (single attempt)
  */
 export const generateImageWithHuggingFace = async (
   description: string
@@ -262,90 +212,59 @@ Colorful, cartoon style, suitable for kids learning.`;
 };
 
 /**
- * Core Hugging Face image generation with retry logic
+ * Core Hugging Face image generation (single attempt)
  */
 async function generateHFImage(
   prompt: string,
   type: "diagram" | "image"
 ): Promise<string> {
-  const models = [
-    "stabilityai/stable-diffusion-xl-base-1.0",
-    "runwayml/stable-diffusion-v1-5",
-  ];
+  const model = "stabilityai/stable-diffusion-xl-base-1.0";
 
-  for (let attempt = 1; attempt <= HF_MAX_RETRIES; attempt++) {
-    for (const model of models) {
-      try {
-        console.log(`[HF ${type}] Attempt ${attempt}, Model: ${model}`);
+  try {
+    console.log(`[HF ${type}] Using model: ${model}`);
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), HF_TIMEOUT);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), HF_TIMEOUT);
 
-        const response = await fetch(
-          `https://api-inference.huggingface.co/models/${model}`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${process.env.HUGGING_FACE_TOKEN}`,
-              "Content-Type": "application/json",
-            },
-            signal: controller.signal,
-            body: JSON.stringify({
-              inputs: prompt,
-              options: { wait_for_model: true },
-            }),
-          }
-        );
-
-        clearTimeout(timeoutId);
-
-        // Skip to next model on certain errors
-        if (response.status === 404 || response.status === 403) {
-          console.log(`[HF ${type}] Model ${model} not accessible, trying next`);
-          continue;
-        }
-
-        if (response.status === 429) {
-          console.log(`[HF ${type}] Rate limited on ${model}`);
-          if (attempt < HF_MAX_RETRIES) {
-            await sleep(2000 * attempt);
-            continue;
-          }
-          throw new Error("Rate limit exceeded");
-        }
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`[HF ${type}] Error: ${response.status} - ${errorText}`);
-          continue;
-        }
-
-        // Convert to base64
-        const arrayBuffer = await response.arrayBuffer();
-        const base64 = Buffer.from(arrayBuffer).toString("base64");
-        
-        console.log(`[HF ${type}] ✅ Success with ${model}`);
-        return `data:image/jpeg;base64,${base64}`;
-
-      } catch (error: any) {
-        console.error(`[HF ${type}] Error with ${model}:`, error.message);
-        
-        if (error.name === "AbortError") {
-          console.log(`[HF ${type}] Timeout on ${model}`);
-        }
-        
-        // Try next model
-        continue;
+    const response = await fetch(
+      `https://api-inference.huggingface.co/models/${model}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.HUGGING_FACE_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          inputs: prompt,
+          options: { wait_for_model: true },
+        }),
       }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error ${response.status}: ${errorText}`);
     }
 
-    // Wait before full retry
-    if (attempt < HF_MAX_RETRIES) {
-      await sleep(2000 * attempt);
+    // Convert to base64
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    
+    console.log(`[HF ${type}] ✅ Success`);
+    return `data:image/jpeg;base64,${base64}`;
+
+  } catch (error: any) {
+    console.error(`[HF ${type}] ❌ Failed:`, error.message);
+    
+    if (error.name === "AbortError") {
+      throw new Error("Request timeout");
     }
+    
+    throw error;
   }
-
-  throw new Error(`Failed to generate ${type} after ${HF_MAX_RETRIES} attempts`);
 }
 
 /**
