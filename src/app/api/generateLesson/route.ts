@@ -39,12 +39,12 @@ export async function POST(request: Request) {
         ? `https://${process.env.VERCEL_URL}` 
         : 'http://localhost:3000';
         
-      await fetch(`${baseUrl}/api/processQueue`, {
+      await fetch(`${baseUrl}/api/generateLessonContent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ lessonId: lesson.id }),
+        body: JSON.stringify({ lessonId: lesson.id, outline }),
       });
     } catch (processError) {
       console.error('Failed to trigger queue processing:', processError);
