@@ -13,51 +13,52 @@ export const generateWithGemini = async (prompt: string) => {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY is not set');
   }
-  
+
   let attempts = 0;
-  
   while (attempts < MAX_RETRIES) {
     console.log(`Attempt ${attempts + 1}`);
     try {
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest"});
+      const responsePromise = fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": process.env.GEMINI_API_KEY!,
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+          }),
+        }
+      ).then(async res => {
+        if (!res.ok) throw new Error(`Gemini API error: ${res.status}`);
+        const data = await res.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      });
 
-      const responsePromise = model.generateContent(prompt);
-      
-      // Create timeout promise
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Gemini API request timed out')), API_TIMEOUT)
       );
-      
-      // Race between API call and timeout
+
       console.log('Before Promise.race');
-      const result = await Promise.race([responsePromise, timeoutPromise]) as any;
+      const content = await Promise.race([responsePromise, timeoutPromise]);
       console.log('After Promise.race');
-      
-      const response = result.response;
-      const content = response.text();
-      
-      if (!content.trim()) {
-        throw new Error('Gemini returned empty response');
-      }
-      
+
+      if (!content.trim()) throw new Error('Gemini returned empty response');
       return content;
     } catch (error: any) {
       attempts++;
       console.error(`Error generating with Gemini (attempt ${attempts}):`, error);
-      
-      // If this was the last attempt, re-throw the error
-      if (attempts >= MAX_RETRIES) {
-        throw new Error(`Gemini API error after ${MAX_RETRIES} attempts: ${error.message || 'Unknown error'}`);
-      }
-      
-      // Wait before retrying
+
+      if (attempts >= MAX_RETRIES)
+        throw new Error(`Gemini API error after ${MAX_RETRIES} attempts: ${error.message}`);
+
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempts));
     }
   }
-  
-  return ''; // This should never be reached
+  return '';
 };
+
 
 // Function to generate diagrams using Hugging Face
 export const generateDiagramWithHuggingFace = async (description: string): Promise<string> => {
