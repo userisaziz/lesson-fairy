@@ -1,11 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 
 // Add retry configuration
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 1;
 const RETRY_DELAY = 3000; // 3 seconds
 
 // Add timeout configuration
-const API_TIMEOUT = 30000; // 30 seconds
+const API_TIMEOUT = 8000; // 30 seconds
 
 // Google Gemini integration 
 export const generateWithGemini = async (prompt: string) => {
