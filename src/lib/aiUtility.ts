@@ -223,7 +223,7 @@ async function generateHFImage(
     const timeoutId = setTimeout(() => controller.abort(), HF_TIMEOUT);
 
     const response = await fetch(
-      `https://api-inference.huggingface.co/models/${model}`,
+      `https://router.huggingface.co/hf-inference/models/${model}`,
       {
         method: "POST",
         headers: {
@@ -287,7 +287,7 @@ export async function checkAPIHealth(): Promise<{
   try {
     if (process.env.HUGGING_FACE_TOKEN) {
       const response = await fetch(
-        "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
+        "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0",
         {
           headers: {
             Authorization: `Bearer ${process.env.HUGGING_FACE_TOKEN}`,
