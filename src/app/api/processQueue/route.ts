@@ -23,7 +23,16 @@ export async function POST(request: Request) {
       message: `Step '${step}' processed successfully for lesson ${lessonId}`,
     });
   } catch (error: any) {
-    console.error(`Error processing step for lesson:', error`);
+    console.error('Error processing step for lesson:', error);
+    
+    // Log more detailed error information
+    if (error.message && error.message.includes('JSON')) {
+      console.error('JSON parsing error details:');
+      console.error('- Error type:', error.name);
+      console.error('- Error message:', error.message);
+      console.error('- Stack trace:', error.stack);
+    }
+    
     return NextResponse.json(
       { error: error.message || 'Failed to process step' }, 
       { status: 500 }

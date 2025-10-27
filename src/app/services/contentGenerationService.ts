@@ -94,9 +94,10 @@ export async function generateContent(prompt: string, outline: string): Promise<
 export function parseAndValidateContent(rawContent: string): LessonContent {
   console.log('Parsing and validating content...');
   
-  const cleanContent = cleanJsonString(rawContent);
+  let cleanContent = cleanJsonString(rawContent);
   console.log(`Cleaned content length: ${cleanContent.length}`);
   
+  // Try to parse the JSON with additional error handling
   try {
     const parsed = JSON.parse(cleanContent);
     console.log('Successfully parsed JSON content');
@@ -175,10 +176,124 @@ export function parseAndValidateContent(rawContent: string): LessonContent {
     return parsed;
   } catch (error: any) {
     console.error('✗ Invalid JSON generated:', error);
-    console.error('Content preview:', cleanContent.substring(0, 500));
-    const errorMessage = error.message || 'Unknown error';
-    throw new Error(`AI generated invalid JSON content: ${errorMessage}`);
+    console.error('Content preview:', cleanContent.substring(0, 1000));
+    
+    // Try to fix common JSON issues and retry
+    try {
+      console.log('Attempting to fix common JSON issues...');
+      cleanContent = fixCommonJsonIssues(cleanContent);
+      const parsed = JSON.parse(cleanContent);
+      console.log('Successfully parsed JSON after fixes');
+      return parsed;
+    } catch (fixError: any) {
+      console.error('Failed to fix JSON issues:', fixError);
+      const errorMessage = error.message || 'Unknown error';
+      throw new Error(`AI generated invalid JSON content: ${errorMessage}`);
+    }
   }
+}
+
+// Additional function to fix common JSON issues
+function fixCommonJsonIssues(jsonStr: string): string {
+  console.log('Attempting to fix common JSON formatting issues...');
+  
+  // Remove any trailing commas before closing braces/brackets
+  let fixed = jsonStr.replace(/,\s*}(\s*)/g, '}');
+  fixed = fixed.replace(/,\s*](\s*)/g, ']');
+  
+  // Fix unescaped quotes in strings (common AI error)
+  fixed = fixUnescapedQuotesInJson(fixed);
+  
+  // Fix missing quotes around keys
+  fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+  
+  // Fix single quotes to double quotes (but be careful not to affect string content)
+  fixed = fixSingleQuotes(fixed);
+  
+  console.log('Fixed JSON length:', fixed.length);
+  return fixed;
+}
+
+function fixUnescapedQuotesInJson(jsonStr: string): string {
+  // More sophisticated approach to fix unescaped quotes
+  let result = '';
+  let inString = false;
+  let escapeNext = false;
+  let lastQuoteIndex = -1;
+  
+  for (let i = 0; i < jsonStr.length; i++) {
+    const char = jsonStr[i];
+    
+    if (escapeNext) {
+      result += char;
+      escapeNext = false;
+      continue;
+    }
+    
+    if (char === '\\') {
+      result += char;
+      escapeNext = true;
+      continue;
+    }
+    
+    if (char === '"' && !inString) {
+      // Opening quote
+      inString = true;
+      lastQuoteIndex = i;
+      result += char;
+    } else if (char === '"' && inString) {
+      // Closing quote
+      inString = false;
+      result += char;
+    } else if (char === '"' && inString) {
+      // Unescaped quote inside string - escape it
+      result += '\\"';
+    } else {
+      result += char;
+    }
+  }
+  
+  return result;
+}
+
+function fixSingleQuotes(jsonStr: string): string {
+  // Replace single quotes with double quotes, but be careful about string content
+  let result = '';
+  let inString = false;
+  let escapeNext = false;
+  
+  for (let i = 0; i < jsonStr.length; i++) {
+    const char = jsonStr[i];
+    
+    if (escapeNext) {
+      result += char;
+      escapeNext = false;
+      continue;
+    }
+    
+    if (char === '\\') {
+      result += char;
+      escapeNext = true;
+      continue;
+    }
+    
+    if (char === '"' && !inString) {
+      // Opening double quote
+      inString = true;
+      result += char;
+    } else if (char === '"' && inString) {
+      // Closing double quote
+      inString = false;
+      result += char;
+    } else if (char === "'" && !inString) {
+      // Single quote outside string - likely a key delimiter, convert to double quote
+      result += '"';
+    } else {
+      result += char;
+    }
+  }
+  
+  return result;
 }
 
 // Post-process content to remove unnecessary code examples

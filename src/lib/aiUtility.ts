@@ -26,7 +26,7 @@ export const generateWithGeminiREST = async (prompt: string): Promise<string> =>
 
   console.log(`[Gemini REST] Starting generation`);
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${process.env.GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {

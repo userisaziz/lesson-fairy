@@ -5,19 +5,15 @@ A modern, AI-powered learning platform that generates interactive lessons with q
 ## Table of Contents
 - [Features](#features)
 - [Architecture Overview](#architecture-overview)
-- [System Design](#system-design)
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
-- [Data Flow](#data-flow)
-- [UI/UX Design](#uiux-design)
-- [Design Principles](#design-principles)
 - [Getting Started](#getting-started)
 - [Environment Variables](#environment-variables)
 - [Database Schema](#database-schema)
 - [API Endpoints](#api-endpoints)
-- [Components](#components)
-- [Services](#services)
-- [Documentation](#documentation)
+- [Deployment](#deployment)
+- [Production Considerations](#production-considerations)
+- [Monitoring & Observability](#monitoring--observability)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -44,47 +40,6 @@ A modern, AI-powered learning platform that generates interactive lessons with q
 4. **Data Layer**: Supabase PostgreSQL with real-time capabilities
 5. **AI Layer**: Multiple AI providers (Google Gemini, Hugging Face)
 6. **UI Layer**: Responsive components with Tailwind CSS
-
-## System Design
-
-### Low-Level Design
-
-#### 1. Lesson Generation Pipeline
-
-![Lesson Generation Process](docs/lesson-generation.svg)
-
-#### 2. Data Model
-
-```mermaid
-erDiagram
-    LESSONS {
-        uuid id PK
-        text outline
-        text content
-        text status
-        timestamp created_at
-        text image_url
-        text diagram_svg
-    }
-```
-
-#### 3. Component Hierarchy
-
-```mermaid
-graph TD
-    A[App] --> B[Layout]
-    B --> C[Page Components]
-    C --> D[LessonGenerator]
-    C --> E[LessonsTable]
-    C --> F[LessonDetail]
-    F --> G[LessonView]
-    F --> H[QuizView]
-    F --> I[ResultsView]
-    G --> J[TableOfContents]
-    G --> K[DiagramRenderer]
-    H --> L[Quiz Components]
-    I --> M[Results Components]
-```
 
 ## Technology Stack
 
@@ -117,142 +72,14 @@ graph TD
 ```
 src/
 ├── app/
-│   ├── api/
-│   │   ├── generateLesson/
-│   │   │   └── route.ts
-│   │   └── testEnv/
-│   │       └── route.ts
-│   ├── lessons/
-│   │   └── [id]/
-│   │       └── page.tsx
-│   ├── services/
-│   │   ├── buildLessonPrompt.service.ts
-│   │   ├── contentGenrationService.ts
-│   │   └── database.service.ts
-│   ├── layout.tsx
-│   └── page.tsx
-├── components/
-│   ├── CodeExampleRenderer.tsx
-│   ├── CodeRenderer.tsx
-│   ├── DiagramRenderer.tsx
-│   ├── ImageRenderer.tsx
-│   ├── LessonGenerator.tsx
-│   ├── LessonView.tsx
-│   ├── LessonsTable.tsx
-│   ├── QuizView.tsx
-│   ├── ResultsView.tsx
-│   └── TableOfContents.tsx
-├── lib/
-│   ├── aiUtility.ts
-│   ├── contentFormatter.ts
-│   ├── supabaseClient.ts
-│   ├── tracing.ts
-│   └── utilityFunctions.ts
-└── types/
-    └── lesson.ts
+│   ├── api/ - API routes (generateLesson, testEnv)
+│   ├── lessons/[id]/ - Dynamic lesson pages
+│   └── services/ - Business logic (content generation, DB, prompts)
+├── components/ - Reusable UI components (LessonView, QuizView, etc.)
+├── lib/ - Utilities (AI, Supabase client, formatting)
+└── types/ - Type definitions (lesson.ts)
 ```
-
-## Data Flow
-
-![Data Flow Architecture](docs/data-flow.svg)
-
-### 1. Lesson Creation Flow
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant F as Frontend
-    participant A as API
-    participant S as Service
-    participant DB as Database
-    participant AI as AI Provider
-
-    U->>F: Submit lesson topic
-    F->>A: POST /api/generateLesson
-    A->>DB: Create lesson record (status: generating)
-    A-->>F: Return lesson ID
-    F->>F: Navigate to lesson page
-    A->>S: Async content generation
-    S->>S: Build AI prompt
-    S->>AI: Request content generation
-    AI-->>S: Return generated content
-    S->>S: Validate and format content
-    S->>DB: Update lesson (status: generated, content)
-    DB-->>F: Real-time update
-    F->>F: Display generated lesson
-```
-
-### 2. Real-time Updates
-
-```mermaid
-sequenceDiagram
-    participant U1 as User 1
-    participant U2 as User 2
-    participant F as Frontend
-    participant DB as Database
-
-    U1->>F: Generate lesson
-    F->>DB: Create lesson record
-    DB-->>U2: Real-time notification
-    U2->>F: See new lesson in list
-    DB->>DB: Update lesson content
-    DB-->>U1: Real-time content update
-    U1->>F: See updated lesson content
-```
-
-## UI/UX Design
-
-### Homepage
-- Modern hero section with gradient backgrounds
-- Prominent lesson generator with example topics
-- Recent lessons table with visual indicators
-- Feature highlights with attractive cards
-- Responsive design for all devices
-
-### Lesson View
-- Course content sidebar with progress tracking
-- Section completion markers
-- Clean, readable content formatting
-- Visual diagrams for enhanced learning
-- Smooth navigation between sections
-
-### Quiz Interface
-- Timer with visual countdown
-- Progress tracking
-- Clear question presentation
-- Visual feedback for selected answers
-- Detailed results with answer explanations
-
-### Results Page
-- Color-coded pass/fail indicators
-- Performance summary with statistics
-- Detailed answer review with explanations
-- Certificate unlock notification
-
-## Design Principles
-
-### Overview
-The application implements a professional UI/UX design inspired by shadcn principles with a focus on:
-- **Consistency**: Uniform styling across all components
-- **Depth**: Subtle shadows and borders for visual hierarchy
-- **Accessibility**: Proper contrast ratios and semantic HTML
-- **Responsiveness**: Mobile-first approach with adaptive layouts
-
-### Key Design Elements
-- **Color Palette**: Gray-based with accent colors for actions
-- **Typography**: System fonts with clear hierarchy
-- **Spacing**: Consistent padding and margins using a defined scale
-- **Shadows**: Subtle elevation with `shadow-[0_3px_10px_rgb(0,0,0,0.08)]`
-- **Borders**: 1px solid `border-gray-200` for clear separation
-- **Rounded Corners**: `rounded-xl` for modern appearance
-
-### Component Design
-- **Cards**: Elevated containers with consistent padding and borders
-- **Buttons**: Clear visual hierarchy with hover states
-- **Forms**: Accessible inputs with proper labeling
-- **Navigation**: Intuitive sidebar and breadcrumb navigation
-
-For detailed implementation of design principles, see [DESIGN_PRINCIPLES.md](DESIGN_PRINCIPLES.md)
+Root files include config (next.config.ts, tsconfig.json), package management (package.json), and documentation.
 
 ## Getting Started
 
@@ -267,7 +94,7 @@ For detailed implementation of design principles, see [DESIGN_PRINCIPLES.md](DES
 1. Clone the repository:
    ```bash
    git clone <repository-url>
-   cd astral
+   cd feyra-ai
    ```
 
 2. Install dependencies:
@@ -296,9 +123,33 @@ For detailed implementation of design principles, see [DESIGN_PRINCIPLES.md](DES
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
+### Building for Production
+
+```bash
+npm run build
+# or
+yarn build
+# or
+pnpm build
+# or
+bun build
+```
+
+### Running Production Build
+
+```bash
+npm start
+# or
+yarn start
+# or
+pnpm start
+# or
+bun start
+```
+
 ## Environment Variables
 
-Create a `.env.local` file in the root directory with the following variables:
+Create a `.env.local` file in the root directory based on the `.env.local.example` file:
 
 ```env
 # Supabase Configuration
@@ -309,11 +160,28 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 # AI Provider Configuration (choose one or more)
 GEMINI_API_KEY=your_google_gemini_api_key
 HUGGING_FACE_TOKEN=your_hugging_face_token
-OLLAMA_API_URL=http://localhost:11434 (for local Ollama)
+OLLAMA_API_URL=http://localhost:11434
 
 # Observability (Optional)
-LANGFUSE_API_KEY=your_langfuse_api_key
+LANGFUSE_PUBLIC_KEY=your_langfuse_public_key
+LANGFUSE_SECRET_KEY=your_langfuse_secret_key
+LANGFUSE_HOST=https://cloud.langfuse.com
+
+# Edge Config (Optional for Vercel)
+EDGE_CONFIG=your_edge_config_url
 ```
+
+### Environment Variable Details
+
+- **NEXT_PUBLIC_SUPABASE_URL**: Your Supabase project URL
+- **NEXT_PUBLIC_SUPABASE_ANON_KEY**: Your Supabase anonymous key
+- **SUPABASE_SERVICE_ROLE_KEY**: Your Supabase service role key (keep secret)
+- **GEMINI_API_KEY**: Google Gemini API key for content generation
+- **HUGGING_FACE_TOKEN**: Hugging Face API token for image generation
+- **OLLAMA_API_URL**: Local Ollama API URL (default: http://localhost:11434)
+- **LANGFUSE_PUBLIC_KEY**: Langfuse public key for observability
+- **LANGFUSE_SECRET_KEY**: Langfuse secret key for observability
+- **LANGFUSE_HOST**: Langfuse host URL (default: https://cloud.langfuse.com)
 
 ## Database Schema
 
@@ -324,11 +192,14 @@ CREATE TABLE lessons (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   outline TEXT NOT NULL,
   content TEXT,
+  json_content JSONB,
   status TEXT CHECK (status IN ('generating', 'generated', 'error')) DEFAULT 'generating',
   error_message TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   image_url TEXT,
-  diagram_svg TEXT
+  diagram_svg TEXT,
+  progress INTEGER DEFAULT 0,
+  raw_content TEXT
 );
 ```
 
@@ -346,85 +217,136 @@ ALTER PUBLICATION supabase_realtime ADD TABLE lessons;
   - **Response**: Lesson object with ID
   - **Description**: Initiates lesson generation process
 
+### Lesson Content Generation (Async)
+- **POST** `/api/generateLessonContent`
+  - **Request Body**: `{ "lessonId": "uuid", "outline": "lesson topic" }`
+  - **Response**: `{ "message": "Content generation started" }`
+  - **Description**: Starts async content generation for a lesson
+
+### Lesson Status
+- **GET** `/api/lessonStatus?lessonId=uuid`
+  - **Response**: `{ "id": "uuid", "status": "generating|generated|error", "progress": number }`
+  - **Description**: Get the current status and progress of a lesson
+
+### Process Queue
+- **POST** `/api/processQueue`
+  - **Request Body**: `{ "lessonId": "uuid", "step": "generateContent|parseAndSaveContent|generateVisuals|finalize" }`
+  - **Response**: `{ "success": true }`
+  - **Description**: Process a specific step in the lesson generation pipeline
+
 ### Environment Test
 - **GET** `/api/testEnv`
   - **Response**: Environment status information
   - **Description**: Tests API and AI provider connectivity
 
-## Components
+### Edge Config Test
+- **GET** `/api/edgeConfig`
+  - **Response**: Edge config status
+  - **Description**: Tests Vercel Edge Config connectivity
 
-### Core UI Components
-- `LessonGenerator` - Main lesson creation interface with progress tracking
-- `LessonsTable` - Display recent lessons with status indicators and visual tags
-- `LessonView` - Render lesson content with table of contents and navigation
-- `QuizView` - Interactive quiz interface with timer and progress tracking
-- `ResultsView` - Quiz results with detailed feedback and performance metrics
-- `DiagramRenderer` - Display SVG diagrams with copy functionality
-- `TableOfContents` - Navigation sidebar for lessons with progress indicators
+## Deployment
 
-### Utility Components
-- `CodeExampleRenderer` - Display interactive code examples with show/hide functionality
-- `CodeRenderer` - Syntax-highlighted code display
-- `ImageRenderer` - Responsive image display with lazy loading
-- `Quiz Components` - Individual quiz question and answer components
+### Vercel Deployment (Recommended)
 
-## Services
+1. Push your code to a GitHub repository
+2. Connect the repository to Vercel
+3. Set environment variables in Vercel dashboard
+4. Deploy!
 
-### Content Generation Service
-Located in `src/app/services/contentGenrationService.ts`
-- Handles asynchronous lesson content generation
-- Implements retry mechanisms for reliability
-- Validates and formats AI-generated content
-- Manages visual content enrichment
+### Manual Deployment
 
-### Database Service
-Located in `src/app/services/database.service.ts`
-- Manages lesson record creation and updates
-- Handles content serialization and deserialization
-- Implements error handling for database operations
+1. Build the application:
+   ```bash
+   npm run build
+   ```
 
-### Prompt Building Service
-Located in `src/app/services/buildLessonPrompt.service.ts`
-- Constructs prompts for AI content generation
-- Formats lesson structure and requirements
-- Ensures consistent output format
+2. Start the production server:
+   ```bash
+   npm start
+   ```
 
-### AI Utility Functions
-Located in `src/lib/aiUtility.ts`
-- Google Gemini integration
-- Hugging Face image/diagram generation
-- Error handling and retry logic for AI calls
+### Docker Deployment (Optional)
 
-## Documentation
+Create a Dockerfile:
+```dockerfile
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
 
-For more detailed technical documentation, please refer to the following files:
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build
 
-### System Design Documents
-- [`docs/SYSTEM_DESIGN.md`](docs/SYSTEM_DESIGN.md) - Comprehensive system architecture with diagrams
-  - System architecture diagrams
-  - Low-level design specifications
-  - Data flow diagrams
-  - Entity relationship diagrams
-  - Component architecture
-  - Sequence diagrams
-  - State diagrams
-  - Deployment architecture
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV production
+RUN addgroup --gid 1001 --system nodejs
+RUN adduser --uid 1001 --system nodejs
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+USER nodejs
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
 
-### Content Structure
-- [`docs/CONTENT_STRUCTURE.md`](docs/CONTENT_STRUCTURE.md) - Detailed lesson content structure
-  - Lesson data model
-  - Content hierarchy
-  - JSON structure examples
-  - Visual components
-  - Quiz structure
+## Production Considerations
 
-### Observability
-- [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) - Tracing and monitoring implementation
-  - Tracing architecture
-  - Langfuse integration
-  - Trace structure
-  - Observability flow
-  - Monitoring dashboard
+### Performance Optimization
+
+1. **Caching**: Implement Redis or similar caching solution for frequently accessed data
+2. **CDN**: Use a CDN for static assets
+3. **Image Optimization**: Use Next.js Image component for automatic optimization
+4. **Code Splitting**: Leverage Next.js automatic code splitting
+5. **Database Indexes**: Add appropriate indexes to Supabase tables
+
+### Security
+
+1. **Rate Limiting**: Implement rate limiting for API endpoints
+2. **Input Validation**: Validate all user inputs
+3. **Environment Variables**: Keep secrets secure and never commit them
+4. **CORS**: Configure CORS properly
+5. **Authentication**: Implement proper user authentication if needed
+
+### Error Handling
+
+1. **Logging**: Implement comprehensive logging
+2. **Monitoring**: Set up error tracking (e.g., Sentry)
+3. **Fallbacks**: Implement fallback mechanisms for AI services
+4. **Retry Logic**: Use exponential backoff for failed requests
+
+### Scalability
+
+1. **Database**: Monitor Supabase performance and upgrade as needed
+2. **API**: Consider API gateway for traffic management
+3. **AI Services**: Monitor rate limits and implement queuing if needed
+4. **Caching**: Use Redis or similar for frequently accessed data
+
+## Monitoring & Observability
+
+### Langfuse Integration
+
+The application includes Langfuse integration for tracing AI operations:
+
+1. Set up Langfuse account
+2. Configure environment variables
+3. Traces will automatically be sent to Langfuse
+
+### Supabase Monitoring
+
+1. Use Supabase dashboard for database monitoring
+2. Set up alerts for performance issues
+3. Monitor real-time subscriptions
+
+### Error Tracking
+
+Consider integrating error tracking solutions like:
+- Sentry
+- LogRocket
+- Rollbar
 
 ## Contributing
 
