@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       message: `Step '${step}' processed successfully for lesson ${lessonId}`,
     });
   } catch (error: any) {
-    console.error(`Error processing step for lesson ${lessonId}:`, error);
+    console.error('Error processing step for lesson:', error);
     
     // Log more detailed error information
     if (error.message && error.message.includes('JSON')) {
