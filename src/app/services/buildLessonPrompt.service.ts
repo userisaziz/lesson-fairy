@@ -1,7 +1,7 @@
 export function buildLessonPrompt(outline: string): string {
   return `Generate educational lesson JSON for: "${outline}"
 
-Return ONLY valid JSON (no explanations):
+Return ONLY valid JSON (no explanations, no markdown code blocks, no extra text):
 
 {
   "id": 1,
@@ -68,7 +68,13 @@ Return ONLY valid JSON (no explanations):
   }
 }
 
-Requirements:
+IMPORTANT FORMATTING RULES:
+- Return ONLY valid JSON with no extra text
+- Ensure all strings are properly quoted with double quotes
+- Ensure all object keys are quoted
+- No trailing commas
+- Escape special characters properly
+- No markdown code blocks or formatting
 - 3 sections, each with 2 subsections
 - 5 quiz questions (3 easy, 2 medium)
 - Clear, accurate content

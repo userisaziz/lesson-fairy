@@ -74,7 +74,7 @@ export class VercelLessonQueue {
   private _parseAndValidateContent(rawContent: string): LessonContent {
     console.log('Parsing and validating content...');
     
-    const cleanContent = cleanJsonString(rawContent);
+    let cleanContent = cleanJsonString(rawContent);
     
     try {
       const parsed = JSON.parse(cleanContent);
@@ -95,8 +95,33 @@ export class VercelLessonQueue {
       return parsed;
     } catch (error: any) {
       console.error('Invalid JSON generated:', error);
-      throw new Error(`AI generated invalid JSON content: ${error.message}`);
+      
+      // Try to fix common JSON issues and retry
+      try {
+        console.log('Attempting to fix common JSON issues in queue service...');
+        cleanContent = this.fixCommonJsonIssues(cleanContent);
+        const parsed = JSON.parse(cleanContent);
+        console.log('Successfully parsed JSON after fixes in queue service');
+        return parsed;
+      } catch (fixError: any) {
+        console.error('Failed to fix JSON issues in queue service:', fixError);
+        throw new Error(`AI generated invalid JSON content: ${error.message}`);
+      }
     }
+  }
+
+  private fixCommonJsonIssues(jsonStr: string): string {
+    console.log('Attempting to fix common JSON formatting issues...');
+    
+    // Remove any trailing commas before closing braces/brackets
+    let fixed = jsonStr.replace(/,\s*}(\s*)/g, '}');
+    fixed = fixed.replace(/,\s*](\s*)/g, ']');
+    
+    // Fix missing quotes around keys
+    fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+    
+    console.log('Fixed JSON length:', fixed.length);
+    return fixed;
   }
 
   private _postProcessContent(content: LessonContent): void {
